@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(timeout 40 npm view zustand version)",
+      "Bash(timeout 40 npm view recharts version)",
+      "Bash(timeout 40 npm view lucide-react version)",
+      "Bash(rm -f warehouse-10-20-10-2-1.map warehouse-map.zip)",
+      "Bash(unzip -o warehouse-10-20-10-2-1.map.zip)",
+      "Bash(awk 'NR>4{print length\\($0\\)}' warehouse-10-20-10-2-1.map)",
+      "Bash(awk 'NR>4 && NR<=17{print substr\\($0,1,80\\)}' warehouse-10-20-10-2-1.map)",
+      "Bash(timeout 280 npm install zustand@5 recharts@3 lucide-react)",
+      "Bash(mkdir -p /home/ujwal/Desktop/arjun/dashboard/public/maps)",
+      "Bash(cp /tmp/claude-1000/-home-ujwal-Desktop-arjun/65125174-a371-4d21-9aa3-2cdf2a16569a/scratchpad/warehouse-10-20-10-2-1.map /home/ujwal/Desktop/arjun/dashboard/public/maps/)",
+      "Bash(awk 'NR>4{r=NR-5; line=$0; out=\"\"; for\\(i=1;i<=length\\(line\\);i++\\){c=substr\\(line,i,1\\); out=out \\(c==\"T\"?\"#\":\".\"\\)} if\\(r<3||r>=59\\) print r\": \"out}' warehouse-10-20-10-2-1.map)",
+      "Bash(awk 'NR==7||NR==8{print substr\\($0,131,31\\)}' warehouse-10-20-10-2-1.map)",
+      "Bash(awk 'NR==7{for\\(i=1;i<=161;i++\\){if\\(substr\\($0,i,1\\)==\".\"\\){printf \"%d \", i-1}} print \"\"}' warehouse-10-20-10-2-1.map)",
+      "Bash(awk 'NR>4{if\\(substr\\($0,31,1\\)==\".\"\\) printf \"%d \", NR-5} END{print \"\"}' warehouse-10-20-10-2-1.map)",
+      "Bash(timeout 170 npx next typegen)",
+      "Bash(timeout 170 npx tsc --noEmit)",
+      "Bash(timeout 200 npm i -D tsx)",
+      "Bash(break)",
+      "Bash(timeout 300 npx tsx scripts/simcheck.ts)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 http://localhost:3111/)",
+      "Bash(timeout 200 npx eslint .)",
+      "Bash(timeout 500 npx tsx scripts/simcheck.ts)",
+      "Bash(python3 -)",
+      "Bash(timeout 580 npx tsx scripts/simcheck.ts)",
+      "Bash(timeout 480 npm run build)",
+      "Bash(timeout 240 npm i -D @napi-rs/canvas)",
+      "Bash(timeout 200 npx tsx scripts/mapshot.ts)",
+      "Bash(grep -n \"wrapRef\\\\|ResizeObserver\\\\|setSize\\\\|className={\\\\`relative\" components/map/MapCanvas.tsx)",
+      "Bash(timeout 420 npx playwright install --only-shell chromium)",
+      "Bash(curl -s -o /dev/null --max-time 4 http://localhost:3111/)",
+      "Bash(curl -s -o /dev/null -w \"server: %{http_code}\\\\n\" http://localhost:3111/)",
+      "Bash(timeout 300 npx tsx scripts/shoot.ts)",
+      "Bash(timeout 300 npm i -D playwright)",
+      "Bash(curl -s -o /dev/null -w \"3000: %{http_code}\\\\n\" --max-time 10 http://localhost:3000/)",
+      "Bash(timeout 300 npx tsx scripts/shoot.ts http://localhost:3000)",
+      "Bash(python3 - *)"
+    ],
+    "additionalDirectories": [
+      "/home/ujwal/Desktop/arjun/dashboard/scripts"
+    ]
+  }
+}
