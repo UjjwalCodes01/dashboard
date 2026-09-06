@@ -37,7 +37,19 @@
       "Bash(timeout 300 npm i -D playwright)",
       "Bash(curl -s -o /dev/null -w \"3000: %{http_code}\\\\n\" --max-time 10 http://localhost:3000/)",
       "Bash(timeout 300 npx tsx scripts/shoot.ts http://localhost:3000)",
-      "Bash(python3 - *)"
+      "Bash(python3 - *)",
+      "Bash(git -C dashboard log --oneline)",
+      "Bash(git -C dashboard status --short)",
+      "Bash(rm -rf dashboard/.git)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(awk 'END{print}')",
+      "Bash(git restore *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npx vercel *)",
+      "Read(//home/ujwal/.local/share/**)",
+      "Read(//home/ujwal/.config/**)"
     ],
     "additionalDirectories": [
       "/home/ujwal/Desktop/arjun/dashboard/scripts"
