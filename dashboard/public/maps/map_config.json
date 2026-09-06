@@ -1,0 +1,251 @@
+{
+  "name": "warehouse-10-20-10-2-1",
+  "source": "MovingAI MAPF benchmarks (Stern et al., SoCS 2019) \u2014 https://movingai.com/benchmarks/mapf/index.html",
+  "file": "/maps/warehouse-10-20-10-2-1.map",
+  "window": {
+    "x0": 15,
+    "y0": 0,
+    "w": 99,
+    "h": 41
+  },
+  "stations": [
+    {
+      "id": "P1",
+      "type": "pickup",
+      "cell": [
+        16,
+        7
+      ]
+    },
+    {
+      "id": "P2",
+      "type": "pickup",
+      "cell": [
+        27,
+        13
+      ]
+    },
+    {
+      "id": "P3",
+      "type": "pickup",
+      "cell": [
+        38,
+        19
+      ]
+    },
+    {
+      "id": "P4",
+      "type": "pickup",
+      "cell": [
+        49,
+        25
+      ]
+    },
+    {
+      "id": "P5",
+      "type": "pickup",
+      "cell": [
+        60,
+        31
+      ]
+    },
+    {
+      "id": "P6",
+      "type": "pickup",
+      "cell": [
+        27,
+        37
+      ]
+    },
+    {
+      "id": "P7",
+      "type": "pickup",
+      "cell": [
+        16,
+        28
+      ]
+    },
+    {
+      "id": "P8",
+      "type": "pickup",
+      "cell": [
+        60,
+        10
+      ]
+    },
+    {
+      "id": "P9",
+      "type": "pickup",
+      "cell": [
+        71,
+        16
+      ]
+    },
+    {
+      "id": "P10",
+      "type": "pickup",
+      "cell": [
+        82,
+        22
+      ]
+    },
+    {
+      "id": "P11",
+      "type": "pickup",
+      "cell": [
+        93,
+        34
+      ]
+    },
+    {
+      "id": "P12",
+      "type": "pickup",
+      "cell": [
+        71,
+        4
+      ]
+    },
+    {
+      "id": "P13",
+      "type": "pickup",
+      "cell": [
+        93,
+        13
+      ]
+    },
+    {
+      "id": "P14",
+      "type": "pickup",
+      "cell": [
+        82,
+        40
+      ]
+    },
+    {
+      "id": "D1",
+      "type": "drop",
+      "cell": [
+        1,
+        10
+      ]
+    },
+    {
+      "id": "D2",
+      "type": "drop",
+      "cell": [
+        1,
+        22
+      ]
+    },
+    {
+      "id": "D3",
+      "type": "drop",
+      "cell": [
+        1,
+        34
+      ]
+    },
+    {
+      "id": "D4",
+      "type": "drop",
+      "cell": [
+        4,
+        16
+      ]
+    },
+    {
+      "id": "D5",
+      "type": "drop",
+      "cell": [
+        4,
+        28
+      ]
+    }
+  ],
+  "chargers": [
+    {
+      "id": "CH-01",
+      "cell": [
+        1,
+        37
+      ]
+    },
+    {
+      "id": "CH-02",
+      "cell": [
+        1,
+        38
+      ]
+    },
+    {
+      "id": "CH-03",
+      "cell": [
+        1,
+        39
+      ]
+    },
+    {
+      "id": "CH-04",
+      "cell": [
+        1,
+        40
+      ]
+    },
+    {
+      "id": "CH-05",
+      "cell": [
+        2,
+        37
+      ]
+    },
+    {
+      "id": "CH-06",
+      "cell": [
+        2,
+        38
+      ]
+    }
+  ],
+  "parking": [
+    [
+      4,
+      39
+    ],
+    [
+      5,
+      39
+    ],
+    [
+      6,
+      39
+    ],
+    [
+      7,
+      39
+    ],
+    [
+      8,
+      39
+    ],
+    [
+      9,
+      39
+    ],
+    [
+      4,
+      40
+    ],
+    [
+      5,
+      40
+    ],
+    [
+      6,
+      40
+    ],
+    [
+      7,
+      40
+    ]
+  ]
+}
