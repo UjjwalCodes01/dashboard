@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { WifiOff } from "lucide-react";
 
-export const metadata = { title: "Offline · EdgeFleet" };
+export const metadata = { title: "Offline · Chakraview" };
 
 /** Served by the service worker when a route that was never cached is opened without a network. */
 export default function OfflinePage() {

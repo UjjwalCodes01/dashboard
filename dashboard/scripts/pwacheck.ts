@@ -80,7 +80,7 @@ const ok = (cond: boolean, msg: string, extra = "") => {
   await page.waitForTimeout(4000);
   const cacheInfo = await page.evaluate(async () => {
     const keys = await caches.keys();
-    const name = keys.find((k) => k.startsWith("edgefleet-"));
+    const name = keys.find((k) => k.startsWith("chakraview-"));
     if (!name) return { name: null, urls: [] as string[] };
     const c = await caches.open(name);
     const reqs = await c.keys();

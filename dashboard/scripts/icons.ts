@@ -1,4 +1,4 @@
-/* Generate PWA icons from the EdgeFleet logo (three peer nodes in a mesh, no centre node).
+/* Generate PWA icons from the Chakraview logo (three peer nodes in a mesh, no centre node).
    Run: npx tsx scripts/icons.ts  → public/icons/{icon-192,icon-512,maskable-512,apple-touch-icon}.png */
 import fs from "node:fs";
 import path from "node:path";

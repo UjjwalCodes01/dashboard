@@ -1,0 +1,261 @@
+<title>Chakraview User Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #F3F5F9;
+    --panel: #FFFFFF;
+    --lane: #EEF1F7;
+    --lane-fleet: #E6F6F9;
+    --ink: #0F172A;
+    --ink-2: #475569;
+    --ink-3: #94A3B8;
+    --line: #CBD5E1;
+    --accent: #0891B2;
+    --accent-soft: #CFFAFE;
+    --fault: #B45309;
+    --ok: #15803D;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B1220; --panel: #111A2E; --lane: #0F1729; --lane-fleet: #0C2028;
+      --ink: #E2E8F0; --ink-2: #94A3B8; --ink-3: #64748B; --line: #1E2A45;
+      --accent: #22D3EE; --accent-soft: #0E3B45; --fault: #F59E0B; --ok: #22C55E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B1220; --panel: #111A2E; --lane: #0F1729; --lane-fleet: #0C2028;
+    --ink: #E2E8F0; --ink-2: #94A3B8; --ink-3: #64748B; --line: #1E2A45;
+    --accent: #22D3EE; --accent-soft: #0E3B45; --fault: #F59E0B; --ok: #22C55E;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 64px; display: grid; gap: 40px; }
+  header { display: grid; gap: 8px; max-width: 68ch; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: -0.005em; }
+  p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  header p { font-size: 16px; }
+  section { display: grid; gap: 14px; }
+  figure { margin: 0; display: grid; gap: 12px; }
+  .frame { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; }
+  .frame svg { display: block; width: 100%; min-width: 900px; height: auto; color: var(--ink); font-family: var(--sans); }
+  figcaption { color: var(--ink-2); font-size: 14px; max-width: 78ch; }
+  /* diagram classes (styled from the page so tokens apply in both themes) */
+  .lane { fill: var(--lane); stroke: none; }
+  .lane-fleet { fill: var(--lane-fleet); stroke: none; }
+  .lane-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; font-weight: 600; fill: var(--ink-3); }
+  .node { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+  .node-fleet { fill: var(--panel); stroke: var(--accent); stroke-width: 1.2; }
+  .node-ghost { fill: none; stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; }
+  .t { font-size: 13px; font-weight: 600; fill: var(--ink); }
+  .s { font-size: 11px; fill: var(--ink-2); }
+  .l { font-size: 11px; fill: var(--ink-2); }
+  .l-accent { font-size: 11px; font-weight: 600; fill: var(--accent); }
+  .l-fault { font-size: 11px; font-weight: 600; fill: var(--fault); }
+  .l-ok { font-size: 11px; font-weight: 600; fill: var(--ok); }
+  .nav { stroke: var(--ink-2); stroke-width: 1.4; fill: none; }
+  .msg { stroke: var(--accent); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+  .msg-fault { stroke: var(--fault); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+  .msg-ok { stroke: var(--ok); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+  .stream { stroke: var(--accent); stroke-width: 4; fill: none; opacity: 0.85; }
+  .legend text { font-size: 11px; fill: var(--ink-2); }
+  /* tech stack */
+  .tablewrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.layer { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; padding-top: 13px; }
+  td.tech { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  td.ver { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+  .planned td.tech::after { content: "planned"; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fault); border: 1px solid var(--fault); border-radius: 3px; padding: 1px 5px; margin-left: 8px; vertical-align: middle; }
+  .note { font-size: 13px; color: var(--ink-3); }
+  @media (prefers-reduced-motion: no-preference) { .frame:focus-within { outline: 2px solid var(--accent); } }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">SIH 2026 · PS 26123 · Round 1</div>
+    <h1>Chakraview user flow</h1>
+    <p>How a judge or operator moves through the monitor, and the only two places the screen touches the fleet. Everything else is a read-only telemetry stream; no control on any page commands a robot.</p>
+  </header>
+
+  <section>
+    <figure>
+      <div class="frame">
+        <svg viewBox="0 0 1180 720" role="img" aria-label="Three lanes: a person opens Chakraview and lands on the Overview; from the top nav they reach Hub, Robot page, Health, Tasks, Network and Resources; only Tasks (publish a template into the fleet auction) and Network (inject a fault) send anything to the fleet, and the fleet answers with a read-only telemetry stream to every screen.">
+          <defs>
+            <marker id="a-nav" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--ink-2)"/></marker>
+            <marker id="a-msg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/></marker>
+            <marker id="a-fault" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--fault)"/></marker>
+            <marker id="a-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--ok)"/></marker>
+            <marker id="a-stream" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/></marker>
+          </defs>
+
+          <!-- lanes -->
+          <rect class="lane" x="16" y="16" width="1148" height="96" rx="8"/>
+          <text class="lane-label" x="1150" y="102" text-anchor="end">PERSON</text>
+          <rect class="lane" x="16" y="128" width="1148" height="330" rx="8"/>
+          <text class="lane-label" x="1150" y="448" text-anchor="end">CHAKRAVIEW · READ-ONLY MONITOR</text>
+          <rect class="lane-fleet" x="16" y="474" width="1148" height="170" rx="8"/>
+          <text class="lane-label" x="1150" y="634" text-anchor="end">FLEET · ROBOTS DECIDE</text>
+
+          <!-- person -->
+          <rect class="node" x="40" y="44" width="180" height="52" rx="6"/>
+          <text class="t" x="52" y="66">Judge / operator</text>
+          <text class="s" x="52" y="84">opens the link or the app</text>
+          <rect class="node-ghost" x="300" y="44" width="230" height="52" rx="6"/>
+          <text class="t" x="312" y="66">Install app (PWA)</text>
+          <text class="s" x="312" y="84">standalone window · keeps working offline</text>
+          <line class="nav" x1="220" y1="70" x2="300" y2="70" marker-end="url(#a-nav)"/>
+          <text class="l" x="232" y="62">optional</text>
+          <line class="nav" x1="130" y1="96" x2="130" y2="160" marker-end="url(#a-nav)"/>
+          <text class="l" x="138" y="132">lands on</text>
+
+          <!-- row A: watch -->
+          <rect class="node" x="40" y="160" width="180" height="64" rx="6"/>
+          <text class="t" x="52" y="184">Overview</text>
+          <text class="s" x="52" y="202">stats · live map · safety</text>
+          <text class="s" x="52" y="216">charging bays · event log</text>
+
+          <rect class="node" x="280" y="160" width="170" height="64" rx="6"/>
+          <text class="t" x="292" y="184">Hub</text>
+          <text class="s" x="292" y="202">full map · click a robot</text>
+          <text class="s" x="292" y="216">for its details card</text>
+
+          <rect class="node" x="510" y="160" width="170" height="64" rx="6"/>
+          <text class="t" x="522" y="184">Robot page</text>
+          <text class="s" x="522" y="202">decision log · intent window</text>
+          <text class="s" x="522" y="216">cameras · telemetry</text>
+
+          <rect class="node" x="740" y="160" width="190" height="64" rx="6"/>
+          <text class="t" x="752" y="184">Health &amp; diagnostics</text>
+          <text class="s" x="752" y="202">PASS / WARN / FAIL groups</text>
+          <text class="s" x="752" y="216">incl. Coordination checks</text>
+
+          <rect class="node" x="980" y="170" width="160" height="44" rx="22"/>
+          <text class="t" x="1000" y="197">Download report</text>
+
+          <line class="nav" x1="220" y1="192" x2="280" y2="192" marker-end="url(#a-nav)"/>
+          <text class="l" x="228" y="184">nav</text>
+          <line class="nav" x1="450" y1="192" x2="510" y2="192" marker-end="url(#a-nav)"/>
+          <text class="l" x="445" y="184">dbl-click</text>
+          <line class="nav" x1="680" y1="192" x2="740" y2="192" marker-end="url(#a-nav)"/>
+          <text class="l" x="688" y="184">Health</text>
+          <line class="nav" x1="930" y1="192" x2="980" y2="192" marker-end="url(#a-nav)"/>
+          <text class="l" x="940" y="184">JSON</text>
+
+          <!-- top nav bus to row B -->
+          <path class="nav" d="M130,224 V290 H1040"/>
+          <text class="l" x="300" y="284">top nav · every page is one tap away</text>
+          <line class="nav" x1="130" y1="290" x2="130" y2="330" marker-end="url(#a-nav)"/>
+          <line class="nav" x1="610" y1="290" x2="610" y2="330" marker-end="url(#a-nav)"/>
+          <line class="nav" x1="1040" y1="290" x2="1040" y2="330" marker-end="url(#a-nav)"/>
+
+          <!-- row B: act -->
+          <rect class="node" x="40" y="330" width="180" height="64" rx="6"/>
+          <text class="t" x="52" y="354">Tasks</text>
+          <text class="s" x="52" y="372">block editor · Issue ×N</text>
+          <text class="s" x="52" y="386">live queue shows every bid</text>
+
+          <rect class="node" x="510" y="330" width="200" height="64" rx="6"/>
+          <text class="t" x="522" y="354">Network</text>
+          <text class="s" x="522" y="372">fault injection only</text>
+          <text class="s" x="522" y="386">links · loss · aisles · partition</text>
+
+          <rect class="node" x="940" y="330" width="200" height="64" rx="6"/>
+          <text class="t" x="952" y="354">Resources</text>
+          <text class="s" x="952" y="372">robots · chargers · stations</text>
+          <text class="s" x="952" y="386">scenarios · system</text>
+
+          <!-- fleet nodes -->
+          <rect class="node-fleet" x="40" y="520" width="300" height="64" rx="6"/>
+          <text class="t" x="52" y="544">Task auction</text>
+          <text class="s" x="52" y="562">every idle robot bids on-board;</text>
+          <text class="s" x="52" y="576">the lowest bid self-assigns</text>
+
+          <rect class="node-fleet" x="470" y="520" width="300" height="64" rx="6"/>
+          <text class="t" x="482" y="544">Local re-plan · yield · re-bid</text>
+          <text class="s" x="482" y="562">peers share intent and route around;</text>
+          <text class="s" x="482" y="576">there is no central server to ask</text>
+
+          <rect class="node-fleet" x="840" y="520" width="300" height="64" rx="6"/>
+          <text class="t" x="852" y="544">Telemetry</text>
+          <text class="s" x="852" y="562">pose · next 8 cells of intent · battery</text>
+          <text class="s" x="852" y="576">bids · health reports · events</text>
+
+          <!-- messages into the fleet (the only two) -->
+          <line class="msg" x1="110" y1="394" x2="110" y2="520" marker-end="url(#a-msg)"/>
+          <line class="msg" x1="170" y1="520" x2="170" y2="394" marker-end="url(#a-msg)"/>
+          <text class="l-accent" x="184" y="428">↓ publish template ×N</text>
+          <text class="l" x="184" y="442">the screen never picks a robot</text>
+          <text class="l" x="184" y="492">↑ winner appears in the queue</text>
+
+          <line class="msg-fault" x1="590" y1="394" x2="590" y2="520" marker-end="url(#a-fault)"/>
+          <line class="msg-ok" x1="650" y1="520" x2="650" y2="394" marker-end="url(#a-ok)"/>
+          <text class="l-fault" x="664" y="428">↓ inject a fault</text>
+          <text class="l" x="664" y="442">kill link · block aisle · partition · kill robot</text>
+          <text class="l-ok" x="664" y="492">↑ collisions stay 0</text>
+
+          <!-- telemetry stream back to every screen -->
+          <line class="stream" x1="990" y1="520" x2="990" y2="466" marker-end="url(#a-stream)"/>
+          <text class="l-accent" x="1002" y="484">read-only stream</text>
+          <text class="l" x="1002" y="498">~5 msg/s per robot</text>
+          <text class="l" x="1002" y="512">feeds every screen</text>
+
+          <!-- legend -->
+          <g class="legend" transform="translate(40,672)">
+            <line class="nav" x1="0" y1="0" x2="40" y2="0" marker-end="url(#a-nav)"/>
+            <text x="48" y="4">navigation</text>
+            <line class="msg" x1="140" y1="0" x2="180" y2="0" marker-end="url(#a-msg)"/>
+            <text x="188" y="4">message into the fleet (only Tasks and Network)</text>
+            <line class="stream" x1="480" y1="0" x2="520" y2="0" marker-end="url(#a-stream)"/>
+            <text x="528" y="4">telemetry back, read-only</text>
+            <rect class="node-ghost" x="700" y="-8" width="40" height="16" rx="3"/>
+            <text x="748" y="4">optional step</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>Two arrows cross into the fleet lane. Tasks publishes a template into the fleet's task topic and the robots run an auction; Network injects a fault and the robots re-plan around it. Every other arrow is navigation or the telemetry stream coming back up.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Tech stack</h2>
+    <p>Versions are what is installed in this build. Rows marked <span style="font-family: var(--mono); font-size: 11px; color: var(--fault); border: 1px solid var(--fault); border-radius: 3px; padding: 1px 5px;">PLANNED</span> are the Round 2 targets the current interfaces were shaped for; none of them run yet.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Version</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td class="layer">Runtime</td><td class="tech">Node.js</td><td class="ver">24.20.0</td><td>Build and script runtime; npm 11.19.0</td></tr>
+          <tr><td class="layer">Framework</td><td class="tech">Next.js (App Router, Turbopack)</td><td class="ver">16.3.4</td><td>Pages, metadata, manifest route, server-rendered robot pages, Vercel deploy target</td></tr>
+          <tr><td class="layer"></td><td class="tech">React / React DOM</td><td class="ver">19.2.8</td><td>UI components, React Compiler lint rules enforced</td></tr>
+          <tr><td class="layer"></td><td class="tech">TypeScript</td><td class="ver">5.9.3</td><td>Whole codebase, strict; <code>lib/types.ts</code> is the telemetry contract</td></tr>
+          <tr><td class="layer">UI</td><td class="tech">Tailwind CSS</td><td class="ver">4.3.3</td><td>Styling via <code>@tailwindcss/postcss</code>; dark operational pages, light admin pages</td></tr>
+          <tr><td class="layer"></td><td class="tech">lucide-react</td><td class="ver">1.41.0</td><td>Icon set</td></tr>
+          <tr><td class="layer"></td><td class="tech">Recharts</td><td class="ver">3.10.1</td><td>Bar, line and error-bar charts (work progress, battery, messages per second)</td></tr>
+          <tr><td class="layer"></td><td class="tech">Canvas 2D API</td><td class="ver">browser</td><td>Warehouse map renderer: two stacked canvases, cached static layer + 30 fps dynamic layer, no library</td></tr>
+          <tr><td class="layer"></td><td class="tech">Inter · JetBrains Mono</td><td class="ver">next/font</td><td>Self-hosted via <code>next/font/google</code>; mono for IDs, timers, coordinates</td></tr>
+          <tr><td class="layer">State</td><td class="tech">Zustand</td><td class="ver">5.0.15</td><td>Fleet store; batched application of telemetry messages</td></tr>
+          <tr><td class="layer">Data</td><td class="tech">MovingAI MAPF benchmark map</td><td class="ver">warehouse-10-20-10-2-1</td><td>Real 161 × 63 warehouse grid (Stern et al., SoCS 2019); a 99 × 41 window is rendered</td></tr>
+          <tr><td class="layer">Simulation</td><td class="tech">In-browser fleet engine</td><td class="ver">lib/sim</td><td>Cell reservation, intent broadcast, priority-inheritance yielding, A* re-planning, CNP auction, battery, health; emits the final message schema</td></tr>
+          <tr><td class="layer">Telemetry</td><td class="tech">Transport abstraction</td><td class="ver">mock · ws</td><td><code>MockTransport</code> today; <code>WsTransport</code> selected by <code>NEXT_PUBLIC_TELEMETRY_WS</code> with no page changes</td></tr>
+          <tr><td class="layer">PWA</td><td class="tech">Web App Manifest + Service Worker</td><td class="ver">hand-written</td><td>Installable; precaches routes, their chunks and the map; works fully offline; versioned by commit SHA</td></tr>
+          <tr><td class="layer">Quality</td><td class="tech">ESLint + eslint-config-next</td><td class="ver">9.39.5</td><td>Lint incl. React hooks / compiler rules; zero warnings in the build</td></tr>
+          <tr><td class="layer">Verification</td><td class="tech">Playwright (Chromium shell)</td><td class="ver">1.63.0</td><td>Desktop and phone screenshots, canvas-paint checks, offline PWA check</td></tr>
+          <tr><td class="layer"></td><td class="tech">@napi-rs/canvas</td><td class="ver">1.0.8</td><td>Headless map render and icon generation without a browser</td></tr>
+          <tr><td class="layer"></td><td class="tech">tsx</td><td class="ver">4.23.13</td><td>Runs the TypeScript scripts: simcheck, mapshot, shoot, pwacheck, icons</td></tr>
+          <tr><td class="layer">Delivery</td><td class="tech">GitHub · Vercel</td><td class="ver">—</td><td>Source at UjjwalCodes01/dashboard; Vercel builds <code>dashboard/</code> on every push</td></tr>
+          <tr class="planned"><td class="layer">Round 2</td><td class="tech">FastAPI backend</td><td class="ver">—</td><td>WebSocket telemetry fan-out that <code>WsTransport</code> already speaks; <code>/api/templates</code></td></tr>
+          <tr class="planned"><td class="layer"></td><td class="tech">ROS 2 + Zenoh</td><td class="ver">—</td><td>On-robot middleware and peer-to-peer intent transport</td></tr>
+          <tr class="planned"><td class="layer"></td><td class="tech">PIBT + ORCA</td><td class="ver">—</td><td>Decentralised path planning and local collision avoidance replacing the scripted engine</td></tr>
+          <tr class="planned"><td class="layer"></td><td class="tech">Raspberry Pi 5 / Jetson edge boards</td><td class="ver">—</td><td>Per-robot compute the health checks already report against</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Nothing here is licensed software with a fee: every runtime dependency is MIT or Apache-2.0 licensed, and the map data is a public research benchmark.</p>
+  </section>
+</main>

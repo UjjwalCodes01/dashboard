@@ -1,4 +1,4 @@
-# EdgeFleet — AMR Fleet Coordination Monitor
+# Chakraview — AMR Fleet Coordination Monitor
 
 Round 1 fleet dashboard for **SIH 2026 · PS 26123 — Edge-AI Based Distributed Fleet Coordination for AMRs in Smart Warehouses** (Bharat Electronics Limited).
 
@@ -132,6 +132,40 @@ The benchmark page runs two engines in lockstep from the same seed, same map, sa
 - **Baseline (alternative): central zone-lock controller** — one robot per one-lane aisle segment, waiting at the entrance. This is a stronger, centralised comparison, closer to what a commercial traffic controller does.
 
 Measured over five seeds with 8 robots, 18 overlapping-path tasks, the mean improvement against naive stop-and-wait ranges roughly from +8 % to +43 % depending on scenario, with high variance and some individual seeds negative. **The ≥ 20 % success criterion is not yet met consistently by the Round 1 mock movement model.** The harness, metrics and statistics are real and final; the planner behind them is scripted. Round 2 swaps `sim/engine.ts` for PIBT + ORCA on ROS 2 + Zenoh and re-runs the same harness with n = 30.
+
+## Tech stack
+
+Versions are what is installed in this build (`node -e` over `package.json`). The last four rows are Round 2 targets the current interfaces were shaped for; none of them run yet.
+
+| Layer | Technology | Version | Used for |
+|---|---|---|---|
+| Runtime | Node.js · npm | 24.20.0 · 11.19.0 | Build and script runtime |
+| Framework | Next.js (App Router, Turbopack) | 16.3.4 | Pages, metadata, manifest route, server-rendered robot pages, Vercel target |
+| | React / React DOM | 19.2.8 | UI; React Compiler lint rules enforced |
+| | TypeScript | 5.9.3 | Whole codebase; `lib/types.ts` is the telemetry contract |
+| UI | Tailwind CSS (`@tailwindcss/postcss`) | 4.3.3 | Dark operational pages, light admin pages |
+| | lucide-react | 1.41.0 | Icons |
+| | Recharts | 3.10.1 | Bar, line and error-bar charts |
+| | Canvas 2D API | browser | Map renderer: two stacked canvases, cached static + 30 fps dynamic layer, no library |
+| | Inter · JetBrains Mono | `next/font` | Self-hosted; mono for IDs, timers, coordinates |
+| State | Zustand | 5.0.15 | Fleet store, batched telemetry application |
+| Data | MovingAI MAPF map | warehouse-10-20-10-2-1 | Real 161 × 63 warehouse grid; a 99 × 41 window is rendered |
+| Simulation | In-browser fleet engine | `lib/sim` | Cell reservation, intent broadcast, priority-inheritance yielding, A* re-plan, CNP auction, battery, health |
+| Telemetry | Transport abstraction | mock · ws | `MockTransport` now; `WsTransport` via `NEXT_PUBLIC_TELEMETRY_WS`, no page changes |
+| PWA | Web App Manifest + Service Worker | hand-written | Installable, precaches routes + chunks + map, offline, versioned by commit SHA |
+| Quality | ESLint + eslint-config-next | 9.39.5 | Lint incl. hooks / compiler rules, zero warnings |
+| Verification | Playwright (Chromium shell) | 1.63.0 | Desktop / phone screenshots, canvas-paint checks, offline PWA check |
+| | @napi-rs/canvas | 1.0.8 | Headless map render, icon generation |
+| | tsx | 4.23.13 | Runs `scripts/*.ts` |
+| Delivery | GitHub · Vercel | — | `UjjwalCodes01/dashboard`; Vercel builds `dashboard/` on every push |
+| Round 2 (planned) | FastAPI backend | — | WebSocket telemetry fan-out `WsTransport` already speaks; `/api/templates` |
+| | ROS 2 + Zenoh | — | On-robot middleware and peer-to-peer intent transport |
+| | PIBT + ORCA | — | Decentralised planning and local avoidance replacing the scripted engine |
+| | Raspberry Pi 5 / Jetson edge boards | — | Per-robot compute the health checks already report against |
+
+Every runtime dependency is MIT or Apache-2.0 licensed; the map data is a public research benchmark.
+
+A user-flow diagram (three lanes: person, Chakraview screens, fleet; only Tasks and Network send anything to the fleet) lives at `docs/user-flow.html`, exported to `docs/chakraview-user-flow.png` by `npx tsx scripts/render-flow.ts`.
 
 ## Design
 

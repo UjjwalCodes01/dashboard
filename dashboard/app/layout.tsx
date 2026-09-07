@@ -18,14 +18,14 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EdgeFleet · AMR Fleet Coordination Monitor",
+  title: "Chakraview · AMR Fleet Coordination Monitor",
   description:
     "Read-only fleet dashboard for decentralised AMR coordination — SIH 2026 PS 26123 (BEL). Robots decide; the dashboard listens.",
-  applicationName: "EdgeFleet",
+  applicationName: "Chakraview",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
-    title: "EdgeFleet",
+    title: "Chakraview",
   },
   icons: {
     icon: [

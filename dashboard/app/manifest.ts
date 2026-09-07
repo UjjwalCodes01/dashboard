@@ -4,8 +4,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "EdgeFleet — AMR Fleet Coordination Monitor",
-    short_name: "EdgeFleet",
+    name: "Chakraview — AMR Fleet Coordination Monitor",
+    short_name: "Chakraview",
     description:
       "Read-only monitor for a decentralised AMR fleet. Robots decide; the dashboard listens. Runs fully offline — like the fleet it watches.",
     start_url: "/",

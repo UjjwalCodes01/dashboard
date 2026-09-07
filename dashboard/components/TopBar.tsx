@@ -16,7 +16,7 @@ function InstallButton({ className = "" }: { className?: string }) {
   const { canInstall, install } = useInstallPrompt();
   if (!canInstall) return null;
   return (
-    <button className={`dark-btn !border-accent/50 !text-accent ${className}`} onClick={() => install()} title="Install EdgeFleet as an app — it runs fully offline">
+    <button className={`dark-btn !border-accent/50 !text-accent ${className}`} onClick={() => install()} title="Install Chakraview as an app — it runs fully offline">
       <Download className="h-3.5 w-3.5" /> Install app
     </button>
   );
@@ -84,7 +84,7 @@ export function TopBar() {
           <Logo className="h-7 w-7" />
           <div className="leading-tight">
             <div className="font-semibold text-[15px] tracking-tight">
-              Edge<span className="text-accent">Fleet</span>
+              Chakra<span className="text-accent">view</span>
             </div>
             <div className="hidden sm:block text-[10px] text-text-2 -mt-0.5 tracking-wide uppercase">Decentralised AMR monitor</div>
           </div>

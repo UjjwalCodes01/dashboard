@@ -1,4 +1,4 @@
-/* EdgeFleet service worker.
+/* Chakraview service worker.
  *
  * The whole telemetry engine runs in the browser, so once the app shell and the map assets are
  * cached the dashboard works with no network at all — the same property the fleet it monitors has.
@@ -7,7 +7,7 @@
  * re-installed and, on activate, every cache from an older build is deleted.
  */
 const BUILD = new URL(self.location.href).searchParams.get("v") || "dev";
-const CACHE = `edgefleet-${BUILD}`;
+const CACHE = `chakraview-${BUILD}`;
 
 /** Pre-rendered routes + assets the mock engine needs at boot. */
 const PRECACHE = [
@@ -72,7 +72,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k.startsWith("edgefleet-") && k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k.startsWith("chakraview-") && k !== CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
       // warm robot pages in the background; never block activation on it
       const cache = await caches.open(CACHE);

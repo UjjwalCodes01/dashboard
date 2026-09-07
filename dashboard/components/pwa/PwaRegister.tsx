@@ -19,7 +19,7 @@ export function PwaRegister() {
 
     if (process.env.NODE_ENV !== "production") {
       navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
-      if ("caches" in window) caches.keys().then((keys) => keys.filter((k) => k.startsWith("edgefleet-")).forEach((k) => caches.delete(k)));
+      if ("caches" in window) caches.keys().then((keys) => keys.filter((k) => k.startsWith("chakraview-")).forEach((k) => caches.delete(k)));
       return;
     }
 
@@ -60,7 +60,7 @@ export function PwaRegister() {
   if (!waiting || dismissed) return null;
   return (
     <div role="status" className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 rounded-lg border border-accent/40 bg-[#0d1528]/95 backdrop-blur px-3 py-2 text-[12px] text-text shadow-lg fade-in">
-      <span>A newer build of EdgeFleet is ready.</span>
+      <span>A newer build of Chakraview is ready.</span>
       <button
         className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 text-accent hover:bg-accent/25"
         onClick={() => waiting.postMessage({ type: "SKIP_WAITING" })}
