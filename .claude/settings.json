@@ -73,7 +73,13 @@
       "Bash(pkill -f \"next dev -p 3111\")",
       "Bash(pkill -f \"next-server\")",
       "Bash(node -e 'const p=require\\(\"./package.json\"\\);const all={...p.dependencies,...p.devDependencies};for\\(const k of Object.keys\\(all\\)\\){try{console.log\\(k.padEnd\\(28\\),require\\(k+\"/package.json\"\\).version\\)}catch{console.log\\(k.padEnd\\(28\\),\"\\(no pkg.json\\)\",all[k]\\)}}')",
-      "Bash(timeout 180 npx tsx scripts/render-flow.ts)"
+      "Bash(timeout 180 npx tsx scripts/render-flow.ts)",
+      "Bash(curl -s -o /dev/null --max-time 4 http://localhost:3111/hub)",
+      "Bash(curl -s -o /dev/null -w \"server: %{http_code}\\\\n\" http://localhost:3111/hub)",
+      "Bash(timeout 300 npx tsx scripts/legendcheck.ts http://localhost:3111)",
+      "Bash(timeout 180 npx tsx scripts/_lshot.ts)",
+      "Bash(git -C .. status --short)",
+      "Bash(git -C /home/ujwal/Desktop/arjun status --short)"
     ],
     "additionalDirectories": [
       "/home/ujwal/Desktop/arjun/dashboard/scripts",

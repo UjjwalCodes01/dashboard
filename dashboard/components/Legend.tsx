@@ -1,5 +1,7 @@
 "use client";
 
+import { useId, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useThrottled } from "@/lib/hooks";
 import { selectRobotList } from "@/lib/store";
 import { STATE_COLORS, STATE_LABELS, STATE_ORDER } from "@/lib/theme";
@@ -41,15 +43,24 @@ export function LegendInline({ showCounts = true }: { showCounts?: boolean }) {
   );
 }
 
-/** Floating legend card (Hub bottom-left, ForwardX style). */
+/** Floating legend card (Hub bottom-left, ForwardX style). Collapsible — it sits over the map. */
 export function LegendCard({ className = "" }: { className?: string }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const bodyId = useId();
   return (
     <div className={`rounded-md border border-panel-border bg-[#0d1528]/92 backdrop-blur px-3 py-2 text-[11px] ${className}`}>
-      <div className="flex items-center justify-between text-text-2 mb-1.5">
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        aria-expanded={!collapsed}
+        aria-controls={bodyId}
+        title={collapsed ? "Show the legend" : "Hide the legend"}
+        className={`flex w-full items-center justify-between text-text-2 hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent rounded-sm ${collapsed ? "" : "mb-1.5"}`}
+      >
         <span className="font-medium text-text">Legend</span>
-        <span>⌄</span>
-      </div>
-      <div className="grid grid-cols-1 gap-[3px]">
+        {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+      </button>
+      <div id={bodyId} hidden={collapsed} className="grid grid-cols-1 gap-[3px]">
         {STATE_ORDER.map((st) => (
           <div key={st} className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: STATE_COLORS[st] }} />
