@@ -38,6 +38,40 @@ npx tsx scripts/shoot.ts http://localhost:3000
 It reports each map canvas's measured size and whether anything is actually painted, which is how the
 zero-height canvas bug below was caught.
 
+## Installable, works offline (PWA)
+
+The dashboard is a Progressive Web App. Because the telemetry engine runs in the browser, an installed
+copy keeps working with no network at all — the same property as the fleet it monitors. On Chromium
+browsers an **Install app** button appears in the top bar; on iOS use Share → Add to Home Screen.
+
+| Piece | Where | Notes |
+|---|---|---|
+| Manifest | `app/manifest.ts` | served at `/manifest.webmanifest`; standalone display, shortcuts to Hub / Benchmark / Faults |
+| Icons | `public/icons/` | generated from the logo by `npx tsx scripts/icons.ts` (192, 512, maskable 512, Apple touch 180) |
+| Service worker | `public/sw.js` | hand-written, no build plugin. Precaches the six static routes **and the `/_next/static` assets they reference**, the map files and icons; warms the ten robot pages after activation |
+| Registration | `components/pwa/PwaRegister.tsx` | production only; in dev it unregisters any leftover worker. Shows a "newer build is ready → Reload" toast |
+| Hooks | `lib/pwa.ts` | `useOnline()` drives the amber *offline · running locally* badge; `useInstallPrompt()` drives the install button |
+| Offline fallback | `app/offline/page.tsx` | served for a route that was never cached |
+
+Caching strategy: `/_next/static` cache-first (hashed, immutable); navigations network-first with a
+4 s timeout, then cache, then `/offline`; map files and icons stale-while-revalidate; Next's RSC
+payload requests are left alone so the router falls back to a full navigation offline.
+
+Versioning: the page registers `/sw.js?v=<build id>` where the id is the Vercel commit SHA (a
+timestamp locally, set in `next.config.ts`). A new deploy is a new worker URL, so it re-installs and
+deletes every cache from the previous build on activation. `/sw.js` is served with `no-cache`.
+
+Verify the whole thing in a real browser — the worker only registers in production, so build first:
+
+```bash
+npm run build && npx next start -p 3111 &
+npx tsx scripts/pwacheck.ts http://localhost:3111
+```
+
+It checks the manifest and icons, the worker's headers, what got precached, that the page becomes
+controlled, and then takes the browser offline and confirms `/hub`, `/benchmark`, `/network` and a
+robot page still render, the offline badge appears, and an uncached URL gets the fallback page.
+
 ## Pages
 
 | Route | What it is |
@@ -48,7 +82,7 @@ zero-height canvas bug below was caught.
 | `/robots/[id]/health` | Health & Diagnostics — grouped PASS/WARN/FAIL checklist with an extra **Coordination** group, detail table, camera preview, JSON report download |
 | `/resources` | Deployment-platform admin — Robot / Charging Station / Pick-Drop Station tables, Map, Scenarios, System (tabs via `?tab=`) |
 | `/tasks` | Task Templates — Scratch-style block editor, template list, live task queue showing per-robot bids |
-| `/benchmark` | Baseline vs ours — two synchronised maps from the same seed, metrics table, mean ± std over n runs |
+| `/benchmark` | **Hidden for Round 1** (no tab; the route redirects to `/`). Baseline vs ours — two synchronised maps from the same seed, metrics table, mean ± std over n runs. Restore by deleting the redirect in `next.config.ts` and the tab in `components/TopBar.tsx` |
 | `/network` | Fault injection — per-robot link kill, packet loss / latency sliders, block aisle, partition fleet, messages-per-second chart |
 
 ## Architecture

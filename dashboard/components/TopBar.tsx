@@ -3,19 +3,31 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Clock3, Radio, ShieldCheck, SlidersHorizontal, X } from "lucide-react";
+import { CalendarDays, Clock3, Download, Radio, ShieldCheck, SlidersHorizontal, WifiOff, X } from "lucide-react";
 import { useFleetStore } from "@/lib/store";
 import { SCENARIO_LIST, type ScenarioName } from "@/lib/sim/scenarios";
 import { fmtDate, fmtSimTime, fmtWall } from "@/lib/format";
 import { useWallClock } from "@/lib/hooks";
+import { useInstallPrompt, useOnline } from "@/lib/pwa";
 import { Logo } from "./Logo";
+
+/** "Install app" — shown only where the browser offers a programmatic prompt and the app isn't already installed. */
+function InstallButton({ className = "" }: { className?: string }) {
+  const { canInstall, install } = useInstallPrompt();
+  if (!canInstall) return null;
+  return (
+    <button className={`dark-btn !border-accent/50 !text-accent ${className}`} onClick={() => install()} title="Install EdgeFleet as an app — it runs fully offline">
+      <Download className="h-3.5 w-3.5" /> Install app
+    </button>
+  );
+}
 
 const TABS: { href: string; label: string; match: (p: string) => boolean }[] = [
   { href: "/", label: "Overview", match: (p) => p === "/" },
   { href: "/hub", label: "Hub", match: (p) => p.startsWith("/hub") || p.startsWith("/robots") },
   { href: "/resources", label: "Resources", match: (p) => p.startsWith("/resources") },
   { href: "/tasks", label: "Tasks", match: (p) => p.startsWith("/tasks") },
-  { href: "/benchmark", label: "Benchmark", match: (p) => p.startsWith("/benchmark") },
+  // Benchmark is hidden for Round 1 (route redirects to / in next.config.ts); restore the tab here to bring it back.
   { href: "/network", label: "Network", match: (p) => p.startsWith("/network") },
 ];
 
@@ -62,6 +74,7 @@ export function TopBar() {
   const simTs = useFleetStore((s) => s.clock?.ts ?? null);
   const phase = useFleetStore((s) => s.clock?.scenario_phase ?? "");
   const wall = useWallClock();
+  const online = useOnline();
   const [open, setOpen] = useState(false);
 
   return (
@@ -99,6 +112,8 @@ export function TopBar() {
           <SimControls />
         </div>
 
+        <InstallButton className="hidden lg:inline-flex" />
+
         <div className="flex items-center gap-2 lg:pl-2 lg:border-l border-panel-border">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock3 className="h-3.5 w-3.5 text-accent" />
@@ -109,11 +124,18 @@ export function TopBar() {
             <CalendarDays className="h-3.5 w-3.5 text-accent" />
             <span className="mono">{wall ? `${fmtDate(wall)} ${fmtWall(wall)}` : "—"}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-text-2" title={transport === "ws" ? "WebSocket telemetry" : "In-browser mock telemetry (final schema)"}>
-            <Radio className="h-3.5 w-3.5 hidden sm:block" />
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-charging pulse" : "bg-offline"}`} />
-            <span className="uppercase tracking-wider hidden sm:inline">{transport}</span>
-          </div>
+          {online ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-text-2" title={transport === "ws" ? "WebSocket telemetry" : "In-browser mock telemetry (final schema)"}>
+              <Radio className="h-3.5 w-3.5 hidden sm:block" />
+              <span className={`h-2 w-2 rounded-full ${connected ? "bg-charging pulse" : "bg-offline"}`} />
+              <span className="uppercase tracking-wider hidden sm:inline">{transport}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-md border border-blocked/50 bg-blocked/10 px-2 py-0.5 text-[11px] text-blocked" title="No network. The fleet simulation runs on this device, so the monitor keeps working.">
+              <WifiOff className="h-3.5 w-3.5" />
+              <span className="uppercase tracking-wider hidden sm:inline">offline · running locally</span>
+            </div>
+          )}
           <button className="lg:hidden dark-btn !px-2" onClick={() => setOpen((v) => !v)} aria-label="Simulation controls" aria-expanded={open}>
             {open ? <X className="h-4 w-4" /> : <SlidersHorizontal className="h-4 w-4" />}
           </button>
@@ -136,6 +158,7 @@ export function TopBar() {
       {open && (
         <div className="lg:hidden absolute left-0 right-0 top-full z-50 border-b border-panel-border bg-[#0A1020]/98 backdrop-blur px-4 py-3 fade-in">
           <SimControls column />
+          <InstallButton className="mt-3 w-full justify-center" />
           <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[#86efac]">
             <ShieldCheck className="h-3.5 w-3.5" /> Read-only monitor · No central server
           </div>

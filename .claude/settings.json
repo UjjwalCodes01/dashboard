@@ -50,10 +50,22 @@
       "Bash(npx vercel *)",
       "Read(//home/ujwal/.local/share/**)",
       "Read(//home/ujwal/.config/**)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(npm cache *)",
+      "Bash(timeout 120 npx tsx scripts/icons.ts)",
+      "Bash(curl -s -o /dev/null --max-time 3 http://localhost:3111/)",
+      "Bash(timeout 300 npx tsx scripts/pwacheck.ts http://localhost:3111)",
+      "Bash(curl -s http://localhost:3111/)",
+      "Bash(sed -i 's|ok\\(/apple-mobile-web-app-capable/.test\\(html\\), \"apple-mobile-web-app-capable present\"\\);|ok\\(/name=\"mobile-web-app-capable\"/.test\\(html\\) \\\\&\\\\& /apple-mobile-web-app-title/.test\\(html\\), \"web-app-capable + apple title metas present\"\\);|' scripts/pwacheck.ts)",
+      "Bash(pkill -f \"next start -p 3111\")",
+      "Bash(ps -o pid,ppid,etime,cmd -p 23865)",
+      "Bash(kill 23865)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code} location=%{redirect_url}\\\\n\" --max-time 30 http://localhost:3000/benchmark)",
+      "Bash(curl -s --max-time 30 http://localhost:3000/)"
     ],
     "additionalDirectories": [
-      "/home/ujwal/Desktop/arjun/dashboard/scripts"
+      "/home/ujwal/Desktop/arjun/dashboard/scripts",
+      "/home/ujwal/Desktop/arjun/dashboard/public"
     ]
   }
 }
