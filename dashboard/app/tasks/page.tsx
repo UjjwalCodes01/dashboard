@@ -103,10 +103,10 @@ export default function TasksPage() {
             <tr>
               <th>Name</th>
               <th>Steps</th>
-              <th>Priority</th>
-              <th>Battery floor</th>
-              <th>Re-bid on block</th>
-              <th>Last issued</th>
+              <th className="hidden md:table-cell">Priority</th>
+              <th className="hidden md:table-cell">Battery floor</th>
+              <th className="hidden md:table-cell">Re-bid on block</th>
+              <th className="hidden md:table-cell">Last issued</th>
               <th>Issue to fleet</th>
               <th>Operation</th>
             </tr>
@@ -121,7 +121,7 @@ export default function TasksPage() {
                     {t.builtin && " · built-in"}
                   </div>
                 </td>
-                <td className="whitespace-normal! min-w-[260px] max-w-[420px]">
+                <td className="whitespace-normal! min-w-[180px] md:min-w-[260px] max-w-[420px]">
                   <div className="flex flex-wrap gap-1">
                     {t.blocks.map((b, i) => (
                       <span key={b.uid + i} className="rounded border border-gray-200 bg-gray-50 px-1.5 py-px text-[11px]">
@@ -130,14 +130,14 @@ export default function TasksPage() {
                     ))}
                   </div>
                 </td>
-                <td>
+                <td className="hidden md:table-cell">
                   <span className={`rounded px-1.5 py-px text-[11px] text-white ${t.priority === "urgent" ? "bg-red-600" : "bg-blue-600"}`}>{t.priority}</span>
                 </td>
-                <td className="mono">{t.battery_floor}%</td>
-                <td>{t.allow_rebid ? <span className="text-green-700">● yes</span> : <span className="text-admin-text-2">○ no</span>}</td>
-                <td className="text-admin-text-2">{fmtLast(t.last_issued)}</td>
+                <td className="hidden md:table-cell mono">{t.battery_floor}%</td>
+                <td className="hidden md:table-cell">{t.allow_rebid ? <span className="text-green-700">● yes</span> : <span className="text-admin-text-2">○ no</span>}</td>
+                <td className="hidden md:table-cell text-admin-text-2">{fmtLast(t.last_issued)}</td>
                 <td>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <input className="admin-input w-[56px] mono" type="number" min={1} max={20} value={counts[t.id] ?? 3} onChange={(e) => setCounts({ ...counts, [t.id]: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} />
                     <select className="admin-input" value={prios[t.id] ?? t.priority} onChange={(e) => setPrios({ ...prios, [t.id]: e.target.value as TaskPriority })}>
                       <option value="normal">normal</option>

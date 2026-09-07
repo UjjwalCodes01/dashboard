@@ -77,14 +77,16 @@ body {
 /* ---------- page frame ----------
    Mobile / tablet: the page scrolls naturally and panels get explicit heights.
    Desktop (≥1024px): the page is exactly one viewport tall and panels flex to fit. */
+/* Phones: the page grows with its content so a light page background reaches the bottom.
+   Desktop: fixed viewport height with panels scrolling internally (min-height: 0 lets it shrink). */
 .dash-main {
   flex: 1 1 auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 @media (min-width: 1024px) {
   .dash-main {
+    min-height: 0;
     height: calc(100vh - 52px);
     overflow: hidden;
   }
@@ -217,6 +219,14 @@ body {
 }
 .admin-table tbody tr:hover td {
   background: #f6fbf7;
+}
+/* Phones: let admin table cells wrap so three- and four-column tables fit without sideways scrolling */
+@media (max-width: 767px) {
+  .admin-table th,
+  .admin-table td {
+    white-space: normal;
+    padding: 8px 10px;
+  }
 }
 .admin-link {
   color: #2563eb;

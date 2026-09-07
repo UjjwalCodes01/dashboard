@@ -79,10 +79,11 @@ export function CameraView({
     >
       <canvas ref={ref} className="absolute inset-0" />
       <div className="absolute left-0 top-0 right-0 flex items-center justify-between px-2 py-1 text-[10px] bg-gradient-to-b from-black/60 to-transparent">
-        <span className="flex items-center gap-1 text-white/90">
-          <Camera className="h-3 w-3" /> {label}
+        <span className="flex items-center gap-1 text-white/90 min-w-0">
+          <Camera className="h-3 w-3 shrink-0" /> <span className="truncate">{label}</span>
         </span>
-        <span className="mono text-white/70">{fmtSimTime(ts)}</span>
+        {/* thumbnails are too narrow for a clock on phones */}
+        <span className={`mono text-white/70 shrink-0 ${main ? "" : "hidden sm:inline"}`}>{fmtSimTime(ts)}</span>
       </div>
       <div className="absolute bottom-1 left-2 text-[9px] uppercase tracking-widest text-white/50">simulated feed</div>
       {main && (
@@ -140,7 +141,7 @@ export function CameraGrid({ robotId }: { robotId: string }) {
       <div className="flex-1 min-h-[220px]">
         <CameraView robotId={robotId} kind={main.kind} label={main.label} main />
       </div>
-      <div className="grid grid-cols-3 gap-2 h-[110px]">
+      <div className="grid grid-cols-3 gap-2 h-[84px] sm:h-[110px]">
         {others.map((c) => (
           <CameraView key={c.kind} robotId={robotId} kind={c.kind} label={c.label} onSelect={() => setMainKind(c.kind)} />
         ))}

@@ -61,7 +61,17 @@
       "Bash(ps -o pid,ppid,etime,cmd -p 23865)",
       "Bash(kill 23865)",
       "Bash(curl -s -o /dev/null -w \"status=%{http_code} location=%{redirect_url}\\\\n\" --max-time 30 http://localhost:3000/benchmark)",
-      "Bash(curl -s --max-time 30 http://localhost:3000/)"
+      "Bash(curl -s --max-time 30 http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"dev server: %{http_code}\\\\n\" --max-time 10 http://localhost:3000/)",
+      "Bash(timeout 300 npx tsx scripts/shoot-mobile.ts http://localhost:3000)",
+      "Bash(timeout 400 npx tsx scripts/shoot-mobile.ts http://localhost:3111)",
+      "Bash(timeout 420 npx tsx scripts/shoot-mobile.ts http://localhost:3111)",
+      "Bash(timeout 300 npx tsx scripts/shoot.ts http://localhost:3111)",
+      "Bash(sed -i 's|      docW: document.documentElement.scrollWidth,|      docW: document.documentElement.scrollWidth,\\\\n      docH: document.documentElement.scrollHeight,|' scripts/shoot-mobile.ts)",
+      "Bash(sed -i 's|    console.log\\(`${p.padEnd\\(24\\)} scrollWidth=${overflow.docW} innerWidth=${overflow.winW}|    console.log\\(`${p.padEnd\\(24\\)} scrollHeight=${overflow.docH} scrollWidth=${overflow.docW} innerWidth=${overflow.winW}|' scripts/shoot-mobile.ts)",
+      "Bash(sed -i 's|    await page.screenshot\\({ path: path.join\\(outDir, `_shot_m_${name}.png`\\), fullPage: true }\\);|    await page.screenshot\\({ path: path.join\\(outDir, `_shot_m_${name}.png`\\), fullPage: overflow.docH < 14000, clip: overflow.docH < 14000 ? undefined : { x: 0, y: 0, width: overflow.winW, height: 3000 } }\\).catch\\(\\(e\\) => console.log\\(`    screenshot failed: ${String\\(e\\).slice\\(0, 80\\)}`\\)\\);|' scripts/shoot-mobile.ts)",
+      "Bash(pkill -f \"next dev -p 3111\")",
+      "Bash(pkill -f \"next-server\")"
     ],
     "additionalDirectories": [
       "/home/ujwal/Desktop/arjun/dashboard/scripts",

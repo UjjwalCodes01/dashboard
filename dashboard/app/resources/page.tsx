@@ -90,15 +90,15 @@ function RobotsTab() {
               <th></th>
               <th>Name</th>
               <th>ID</th>
-              <th>Model</th>
-              <th>Edge board</th>
-              <th>Firmware</th>
+              <th className="hidden md:table-cell">Model</th>
+              <th className="hidden md:table-cell">Edge board</th>
+              <th className="hidden md:table-cell">Firmware</th>
               <th>Status</th>
               <th>Battery</th>
               <th>Current task</th>
-              <th>Peers</th>
-              <th>Location</th>
-              <th>Last seen</th>
+              <th className="hidden md:table-cell">Peers</th>
+              <th className="hidden md:table-cell">Location</th>
+              <th className="hidden md:table-cell">Last seen</th>
               <th>Operation</th>
             </tr>
           </thead>
@@ -112,9 +112,9 @@ function RobotsTab() {
                     <td className="w-6 text-admin-text-2">{isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</td>
                     <td className="font-medium">{r.robot_id.replace("AMR-", "Edge AMR ")}</td>
                     <td className="mono">{r.robot_id}</td>
-                    <td>{i?.model ?? "—"}</td>
-                    <td>{i?.board ?? "—"}</td>
-                    <td className="mono">{i?.firmware ?? "—"}</td>
+                    <td className="hidden md:table-cell">{i?.model ?? "—"}</td>
+                    <td className="hidden md:table-cell">{i?.board ?? "—"}</td>
+                    <td className="hidden md:table-cell mono">{i?.firmware ?? "—"}</td>
                     <td>
                       <Dot color={STATE_COLORS[r.state]} />
                       {r.state === "offline" ? "Offline" : r.state === "degraded" ? "Degraded" : "Online"}
@@ -124,9 +124,9 @@ function RobotsTab() {
                       <BatteryBar pct={r.battery_pct} dark={false} />
                     </td>
                     <td className="mono">{r.task ? `${r.task.id} · ${r.task.step}` : <span className="text-admin-text-2">—</span>}</td>
-                    <td className="mono">{r.neighbours.length}</td>
-                    <td className="mono">{map ? locationCode(map, r.cell[0], r.cell[1]) : "—"}</td>
-                    <td className="text-admin-text-2">{Math.max(0, simNow - r.ts) < 1 ? "just now" : `${(simNow - r.ts).toFixed(0)} s ago`}</td>
+                    <td className="hidden md:table-cell mono">{r.neighbours.length}</td>
+                    <td className="hidden md:table-cell mono">{map ? locationCode(map, r.cell[0], r.cell[1]) : "—"}</td>
+                    <td className="hidden md:table-cell text-admin-text-2">{Math.max(0, simNow - r.ts) < 1 ? "just now" : `${(simNow - r.ts).toFixed(0)} s ago`}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <Link href={`/robots/${r.robot_id}`} className="admin-link mr-3">
                         View

@@ -45,7 +45,7 @@ export function RobotDetail({ id }: { id: string }) {
             </option>
           ))}
         </select>
-        <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar max-w-full">
+        <div className="flex flex-wrap items-center gap-1.5 max-w-full lg:flex-nowrap lg:overflow-x-auto hide-scrollbar">
           {pills.map((p) => (
             <Pill key={p.label} ok={p.ok} tone={p.ok ? "green" : "red"} className="shrink-0">
               {p.label}

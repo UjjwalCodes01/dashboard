@@ -71,10 +71,10 @@ export default function NetworkPage() {
                   <th className="font-medium px-3 py-1.5">Robot</th>
                   <th className="font-medium px-2 py-1.5">State</th>
                   <th className="font-medium px-2 py-1.5">Link</th>
-                  <th className="font-medium px-2 py-1.5 text-right">msgs/s</th>
-                  <th className="font-medium px-2 py-1.5 text-right">last seen</th>
-                  <th className="font-medium px-2 py-1.5 text-right">peers</th>
-                  <th className="font-medium px-2 py-1.5 text-right">planner</th>
+                  <th className="hidden md:table-cell font-medium px-2 py-1.5 text-right">msgs/s</th>
+                  <th className="hidden md:table-cell font-medium px-2 py-1.5 text-right">last seen</th>
+                  <th className="hidden md:table-cell font-medium px-2 py-1.5 text-right">peers</th>
+                  <th className="hidden md:table-cell font-medium px-2 py-1.5 text-right">planner</th>
                   <th className="font-medium px-3 py-1.5 text-right">power</th>
                 </tr>
               </thead>
@@ -84,7 +84,7 @@ export default function NetworkPage() {
                   const disabled = network?.disabled.includes(r.robot_id) ?? false;
                   return (
                     <tr key={r.robot_id} className="border-t border-panel-border/50">
-                      <td className="px-3 py-1.5 mono font-semibold">
+                      <td className="px-3 py-1.5 mono font-semibold whitespace-nowrap">
                         <span className="inline-block h-2 w-2 rounded-full mr-2" style={{ background: STATE_COLORS[r.state] }} />
                         {r.robot_id}
                       </td>
@@ -94,10 +94,10 @@ export default function NetworkPage() {
                       <td className="px-2 py-1.5">
                         <Toggle on={up} danger onChange={(v) => send({ type: "fault", action: "toggle_link", target: r.robot_id, value: v })} label={<span className={up ? "text-charging" : "text-offline"}>{up ? "up" : "down"}</span>} title="Fault injection: kill / restore this robot's link" />
                       </td>
-                      <td className="px-2 py-1.5 mono text-right">{r.msgs_per_sec.toFixed(1)}</td>
-                      <td className="px-2 py-1.5 mono text-right text-text-2">{Math.max(0, simNow - r.ts).toFixed(1)} s</td>
-                      <td className="px-2 py-1.5 mono text-right">{r.neighbours.length}</td>
-                      <td className="px-2 py-1.5 mono text-right">{r.planner_latency_ms.toFixed(1)} ms</td>
+                      <td className="hidden md:table-cell px-2 py-1.5 mono text-right">{r.msgs_per_sec.toFixed(1)}</td>
+                      <td className="hidden md:table-cell px-2 py-1.5 mono text-right text-text-2 whitespace-nowrap">{Math.max(0, simNow - r.ts).toFixed(1)} s</td>
+                      <td className="hidden md:table-cell px-2 py-1.5 mono text-right">{r.neighbours.length}</td>
+                      <td className="hidden md:table-cell px-2 py-1.5 mono text-right whitespace-nowrap">{r.planner_latency_ms.toFixed(1)} ms</td>
                       <td className="px-3 py-1.5 text-right">
                         <button
                           className={`dark-btn !py-[3px] ${disabled ? "dark-btn-danger" : ""}`}

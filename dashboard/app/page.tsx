@@ -33,7 +33,7 @@ export default function OverviewPage() {
             <StatTiles />
           </Panel>
           <Panel
-            className="h-[62vw] min-h-[320px] max-h-[540px] lg:max-h-none lg:h-auto lg:flex-1 lg:min-h-0"
+            className="h-[62vw] min-h-[400px] max-h-[540px] lg:max-h-none lg:h-auto lg:flex-1 lg:min-h-0"
             title="Real-time AMR Fleet Map"
             right={
               <div className="flex items-center gap-3">

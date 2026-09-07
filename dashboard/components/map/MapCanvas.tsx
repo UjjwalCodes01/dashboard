@@ -134,12 +134,18 @@ export function MapCanvas({
       const leftPad = pad + (compact ? 6 : 14); // room for aisle numbers
       const availW = Math.max(10, size.w - leftPad - pad);
       const availH = Math.max(10, size.h - pad * 2);
-      const base = Math.min(availW / map.width, availH / map.height);
+      const contain = Math.min(availW / map.width, availH / map.height);
+      // Phones: the 99-cell map fits the width at ~4 px per cell and leaves the box mostly empty.
+      // On a narrow wrapper fill the box height instead (capped so labels stay sane) and anchor the
+      // left edge, where staging, drops and chargers are; pan / pinch reaches the rest.
+      const narrow = size.w < 640 && typeof window !== "undefined" && window.innerWidth < 1024 && !focusRef.current;
+      const base = narrow ? Math.min(Math.max(contain, availH / map.height), contain * 3) : contain;
       const cs = base * zoomRef.current;
       const mapW = map.width * cs;
       const mapH = map.height * cs;
       let ox = leftPad + (availW - mapW) / 2 + panRef.current.x;
       let oy = pad + (availH - mapH) / 2 + panRef.current.y;
+      if (narrow && mapW > availW) ox = leftPad + panRef.current.x;
       if (focusRef.current) {
         ox = size.w / 2 - (focusRef.current.x + 0.5) * cs + panRef.current.x;
         oy = size.h / 2 - (focusRef.current.y + 0.5) * cs + panRef.current.y;

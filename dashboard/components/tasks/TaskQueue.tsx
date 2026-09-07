@@ -61,12 +61,12 @@ export function TaskQueue({ light = true, limit = 40 }: { light?: boolean; limit
           <thead>
             <tr className={light ? "" : "text-text-2 text-left"}>
               <th className="px-3 py-1.5 font-medium">Task</th>
-              <th className="px-2 py-1.5 font-medium">Template</th>
+              <th className="hidden md:table-cell px-2 py-1.5 font-medium">Template</th>
               <th className="px-2 py-1.5 font-medium">Route</th>
               <th className="px-2 py-1.5 font-medium">Lifecycle</th>
               <th className="px-2 py-1.5 font-medium">Bids (on-robot)</th>
               <th className="px-2 py-1.5 font-medium">Robot</th>
-              <th className="px-3 py-1.5 font-medium">Timing</th>
+              <th className="hidden md:table-cell px-3 py-1.5 font-medium">Timing</th>
             </tr>
           </thead>
           <tbody>
@@ -86,8 +86,8 @@ export function TaskQueue({ light = true, limit = 40 }: { light?: boolean; limit
                     </div>
                     {t.note && <div className={`text-[10px] ${tx2}`}>{t.note}</div>}
                   </td>
-                  <td className={`px-2 py-2 ${tx2}`}>{t.template_name}</td>
-                  <td className="px-2 py-2 mono">
+                  <td className={`hidden md:table-cell px-2 py-2 ${tx2}`}>{t.template_name}</td>
+                  <td className="px-2 py-2 mono whitespace-nowrap">
                     {t.from} → {t.to}
                   </td>
                   <td className="px-2 py-2">
@@ -105,7 +105,7 @@ export function TaskQueue({ light = true, limit = 40 }: { light?: boolean; limit
                   </td>
                   <td className="px-2 py-2">
                     {bids.length ? (
-                      <div className="flex flex-wrap gap-1 max-w-[260px]">
+                      <div className="flex flex-wrap gap-1 max-w-[160px] md:max-w-[260px]">
                         {bids.map(([rid, v]) => {
                           const win = rid === t.winner;
                           return (
@@ -135,7 +135,7 @@ export function TaskQueue({ light = true, limit = 40 }: { light?: boolean; limit
                       <span className={tx2}>—</span>
                     )}
                   </td>
-                  <td className={`px-3 py-2 mono text-[11px] ${tx2}`}>
+                  <td className={`hidden md:table-cell px-3 py-2 mono text-[11px] ${tx2}`}>
                     {fmtSimTime(t.created_ts)}
                     {t.assigned_ts != null && <> · +{(t.assigned_ts - t.created_ts).toFixed(0)}s assign</>}
                     {t.done_ts != null && t.assigned_ts != null && <> · {(t.done_ts - t.assigned_ts).toFixed(0)}s run</>}

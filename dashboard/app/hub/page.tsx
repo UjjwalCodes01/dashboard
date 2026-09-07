@@ -26,7 +26,7 @@ export default function HubPage() {
   return (
     <main className="page-dark dash-main relative">
       {/* map stage: fixed height on mobile, fills the area left of the rail on desktop */}
-      <div className="relative h-[62vh] min-h-[360px] lg:h-auto lg:min-h-0 lg:absolute lg:inset-y-0 lg:left-0 lg:right-[345px]">
+      <div className="relative h-[52vh] min-h-[320px] lg:h-auto lg:min-h-0 lg:absolute lg:inset-y-0 lg:left-0 lg:right-[345px]">
         <MapCanvas className="absolute inset-0" onOpenRobot={(id) => router.push(`/robots/${id}`)} />
 
         {/* top centre: scenario + safety pins */}
@@ -61,7 +61,8 @@ export default function HubPage() {
         )}
 
         {/* bottom-left: legend + toggles */}
-        <div className={`absolute bottom-2 left-2 right-2 lg:right-auto lg:bottom-3 lg:left-3 items-end gap-2 ${selected ? "hidden lg:flex" : "flex"}`}>
+        {/* right-16 on phones keeps the toggle strip clear of the map's ⤢ fit button */}
+        <div className={`absolute bottom-2 left-2 right-16 lg:right-auto lg:bottom-3 lg:left-3 items-end gap-2 ${selected ? "hidden lg:flex" : "flex"}`}>
           <LegendCard className="hidden lg:block w-[210px]" />
           <div className="max-w-full overflow-x-auto hide-scrollbar">
             <ViewToggles className="whitespace-nowrap" />

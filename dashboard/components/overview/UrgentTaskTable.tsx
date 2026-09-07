@@ -44,7 +44,7 @@ export function UrgentTaskTable({ limit = 7 }: { limit?: number }) {
       <thead>
         <tr className="text-text-2 text-left">
           <th className="font-medium px-3 py-1.5">Vehicle</th>
-          <th className="font-medium px-2 py-1.5">Current location</th>
+          <th className="hidden sm:table-cell font-medium px-2 py-1.5">Current location</th>
           <th className="font-medium px-2 py-1.5">Target</th>
           <th className="font-medium px-2 py-1.5 text-right">Stops</th>
           <th className="font-medium px-3 py-1.5 text-right">Assigned by</th>
@@ -53,7 +53,7 @@ export function UrgentTaskTable({ limit = 7 }: { limit?: number }) {
       <tbody>
         {rows.map(({ task, robot, loc, target, stops, bid, bidders }) => (
           <tr key={task.task_id} className="border-t border-panel-border/60 hover:bg-white/[0.03]">
-            <td className="px-3 py-2">
+            <td className="px-3 py-2 whitespace-nowrap">
               {robot ? (
                 <Link href={`/robots/${robot.robot_id}`} className="flex items-center gap-2 hover:text-accent">
                   <RobotGlyph color={STATE_COLORS[robot.state]} />
@@ -66,7 +66,7 @@ export function UrgentTaskTable({ limit = 7 }: { limit?: number }) {
                 </span>
               )}
             </td>
-            <td className="px-2 py-2 mono text-text-2">{loc ?? (task.phase === "bidding" ? "bids open" : "announced")}</td>
+            <td className="hidden sm:table-cell px-2 py-2 mono text-text-2">{loc ?? (task.phase === "bidding" ? "bids open" : "announced")}</td>
             <td className="px-2 py-2 mono">{target}</td>
             <td className="px-2 py-2 mono text-right">{stops}</td>
             <td className="px-3 py-2 text-right text-text-2">
