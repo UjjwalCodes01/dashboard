@@ -44,7 +44,7 @@ function SimControls({ column = false }: { column?: boolean }) {
       <div className={`flex items-center ${column ? "justify-between" : ""}`}>
         {column && <span className="text-[12px] text-text-2">sim speed</span>}
         <div className="flex items-center rounded-md border border-panel-border overflow-hidden">
-          {[1, 2, 4].map((k) => (
+          {[1, 2].map((k) => (
             <button key={k} onClick={() => setTimeScale(k)} className={`px-2.5 py-1 text-[11px] mono ${timeScale === k ? "bg-accent/15 text-accent" : "text-text-2 hover:text-text"}`} title="Sim speed (view control only)">
               {k}×
             </button>

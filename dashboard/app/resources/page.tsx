@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, Filter, Plus, RefreshCw } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { BatteryBar } from "@/components/ui";
-import { drawFullMapThumb } from "@/components/map/render";
 import { useThrottled } from "@/lib/hooks";
 import { selectRobotList, useFleetStore } from "@/lib/store";
 import { SCENARIO_LIST } from "@/lib/sim/scenarios";
@@ -15,12 +14,11 @@ import { cellLabel, locationCode } from "@/lib/sim/map";
 import { fmtSimTime } from "@/lib/format";
 import type { RobotState } from "@/lib/types";
 
-type Tab = "robots" | "chargers" | "stations" | "map" | "scenarios" | "system";
+type Tab = "robots" | "chargers" | "stations" | "scenarios" | "system";
 const TABS: { key: Tab; label: string }[] = [
   { key: "robots", label: "Robot" },
   { key: "chargers", label: "Charging Station" },
   { key: "stations", label: "Pick / Drop Station" },
-  { key: "map", label: "Map" },
   { key: "scenarios", label: "Scenarios" },
   { key: "system", label: "System" },
 ];
@@ -28,7 +26,6 @@ const TITLES: Record<Tab, string> = {
   robots: "Resource · Robot",
   chargers: "Resource · Charging Station",
   stations: "Resource · Pick / Drop Station",
-  map: "Map",
   scenarios: "Scenarios",
   system: "System",
 };
@@ -321,94 +318,6 @@ function StationsTab() {
   );
 }
 
-function MapTab() {
-  const map = useFleetStore((s) => s.map);
-  const ref = useRef<HTMLCanvasElement>(null);
-  const [full, setFull] = useState<{ rows: string[]; w: number; h: number } | null>(null);
-  useEffect(() => {
-    fetch("/maps/warehouse-10-20-10-2-1.map")
-      .then((r) => r.text())
-      .then((text) => {
-        const lines = text.split(/\r?\n/);
-        const start = lines.findIndex((l) => l.trim() === "map") + 1;
-        const h = parseInt(lines.find((l) => l.startsWith("height"))?.split(/\s+/)[1] ?? "0", 10);
-        const w = parseInt(lines.find((l) => l.startsWith("width"))?.split(/\s+/)[1] ?? "0", 10);
-        setFull({ rows: lines.slice(start, start + h), w, h });
-      })
-      .catch(() => setFull(null));
-  }, []);
-  useEffect(() => {
-    if (!full || !map || !ref.current) return;
-    const cs = 6;
-    const c = ref.current;
-    c.width = full.w * cs;
-    c.height = full.h * cs;
-    const ctx = c.getContext("2d");
-    if (ctx) drawFullMapThumb(ctx, full.rows, full.w, full.h, map.window, cs);
-  }, [full, map]);
-  if (!map) return <div className="text-admin-text-2">Loading map…</div>;
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
-      <div className="rounded-md border border-admin-line bg-white p-3 overflow-auto">
-        <div className="text-[12px] text-admin-text-2 mb-2">
-          Full MovingAI map ({map.fullWidth} × {map.fullHeight}) — the cyan rectangle is the {map.width} × {map.height} window the Round 1 fleet runs in.
-        </div>
-        <canvas ref={ref} className="max-w-full" />
-      </div>
-      <div className="rounded-md border border-admin-line bg-white p-4 text-[12px] space-y-2">
-        <div className="font-semibold text-[13px]">{map.name}</div>
-        <div className="text-admin-text-2 leading-snug">{map.source}</div>
-        <table className="w-full">
-          <tbody className="[&_td]:py-1 [&_td:first-child]:text-admin-text-2">
-            <tr>
-              <td>Window</td>
-              <td className="mono">
-                x {map.window.x0}–{map.window.x0 + map.window.w - 1}, y {map.window.y0}–{map.window.y0 + map.window.h - 1}
-              </td>
-            </tr>
-            <tr>
-              <td>Shelf blocks</td>
-              <td className="mono">{map.shelves.length}</td>
-            </tr>
-            <tr>
-              <td>Vertical aisles</td>
-              <td className="mono">{map.vAisles.map((a) => a.name).join(" ")}</td>
-            </tr>
-            <tr>
-              <td>Horizontal aisles</td>
-              <td className="mono">{map.hAisles.length}</td>
-            </tr>
-            <tr>
-              <td>Choke points</td>
-              <td className="mono">{map.chokes.length}</td>
-            </tr>
-            <tr>
-              <td>Stations</td>
-              <td className="mono">
-                {map.stations.filter((s) => s.type === "pickup").length} pickup · {map.stations.filter((s) => s.type === "drop").length} drop
-              </td>
-            </tr>
-            <tr>
-              <td>Chargers</td>
-              <td className="mono">{map.chargers.length}</td>
-            </tr>
-            <tr>
-              <td>Corridor width</td>
-              <td className="mono">1 cell (1 m)</td>
-            </tr>
-          </tbody>
-        </table>
-        <a className="admin-btn inline-flex mt-2" href="/maps/warehouse-10-20-10-2-1.map" download>
-          Download .map
-        </a>
-        <a className="admin-btn inline-flex mt-2 ml-2" href="/maps/map_config.json" download>
-          map_config.json
-        </a>
-      </div>
-    </div>
-  );
-}
-
 function ScenariosTab() {
   const scenario = useFleetStore((s) => s.scenario);
   const setScenario = useFleetStore((s) => s.setScenario);
@@ -503,7 +412,6 @@ function ResourcesInner() {
       {valid === "robots" && <RobotsTab />}
       {valid === "chargers" && <ChargersTab />}
       {valid === "stations" && <StationsTab />}
-      {valid === "map" && <MapTab />}
       {valid === "scenarios" && <ScenariosTab />}
       {valid === "system" && <SystemTab />}
     </AdminShell>

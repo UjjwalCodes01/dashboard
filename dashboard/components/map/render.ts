@@ -647,26 +647,3 @@ function hexA(hex: string, a: number): string {
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, a))})`;
 }
-
-/** Draw the full 63×161 map thumbnail with the crop window outlined (used in Resources → Map). */
-export function drawFullMapThumb(
-  ctx: CanvasRenderingContext2D,
-  rows: string[],
-  width: number,
-  height: number,
-  win: { x0: number; y0: number; w: number; h: number },
-  cs: number,
-) {
-  ctx.clearRect(0, 0, width * cs, height * cs);
-  ctx.fillStyle = "#0e162a";
-  ctx.fillRect(0, 0, width * cs, height * cs);
-  ctx.fillStyle = "#2a3550";
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++)
-      if (rows[y]?.[x] !== ".") ctx.fillRect(x * cs, y * cs, cs, cs);
-  ctx.strokeStyle = "#22D3EE";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(win.x0 * cs, win.y0 * cs, win.w * cs, win.h * cs);
-  ctx.fillStyle = "rgba(34,211,238,0.08)";
-  ctx.fillRect(win.x0 * cs, win.y0 * cs, win.w * cs, win.h * cs);
-}

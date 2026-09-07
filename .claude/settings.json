@@ -49,7 +49,8 @@
       "Bash(git push *)",
       "Bash(npx vercel *)",
       "Read(//home/ujwal/.local/share/**)",
-      "Read(//home/ujwal/.config/**)"
+      "Read(//home/ujwal/.config/**)",
+      "Bash(python3 -c ' *)"
     ],
     "additionalDirectories": [
       "/home/ujwal/Desktop/arjun/dashboard/scripts"

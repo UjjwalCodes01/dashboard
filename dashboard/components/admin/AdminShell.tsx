@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { Boxes, Cog, LayoutGrid, ListTree, Map as MapIcon, PlaySquare } from "lucide-react";
+import { Boxes, Cog, LayoutGrid, ListTree, PlaySquare } from "lucide-react";
 import { useFleetStore } from "@/lib/store";
 
 interface NavItem {
@@ -29,7 +29,6 @@ const GROUPS: NavGroup[] = [
       { label: "Pick / Drop Station", href: "/resources?tab=stations", tab: "stations" },
     ],
   },
-  { label: "Map", icon: <MapIcon className="h-4 w-4" />, href: "/resources?tab=map", tab: "map" },
   { label: "Task Templates", icon: <ListTree className="h-4 w-4" />, href: "/tasks" },
   { label: "Scenarios", icon: <PlaySquare className="h-4 w-4" />, href: "/resources?tab=scenarios", tab: "scenarios" },
   { label: "System", icon: <Cog className="h-4 w-4" />, href: "/resources?tab=system", tab: "system" },
