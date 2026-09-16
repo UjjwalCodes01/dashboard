@@ -4,6 +4,8 @@ import "./globals.css";
 import { TelemetryProvider } from "@/lib/telemetry/TelemetryProvider";
 import { TopBar } from "@/components/TopBar";
 import { PwaRegister } from "@/components/pwa/PwaRegister";
+import { ReplayBar } from "@/components/ReplayBar";
+import { CommandPalette } from "@/components/CommandPalette";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -53,6 +55,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="flex-1 flex flex-col min-h-0">{children}</div>
         </TelemetryProvider>
         <PwaRegister />
+        <ReplayBar />
+        <CommandPalette />
       </body>
     </html>
   );

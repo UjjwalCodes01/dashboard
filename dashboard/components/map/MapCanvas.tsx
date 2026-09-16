@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Cell, RobotStateMsg } from "@/lib/types";
+import type { Cell, Pedestrian, RobotStateMsg } from "@/lib/types";
 import type { WarehouseMap } from "@/lib/sim/map";
 import { useFleetStore } from "@/lib/store";
 import { STATE_LABELS } from "@/lib/theme";
@@ -14,6 +14,8 @@ export interface MapSource {
   /** changes whenever new robot data arrived */
   version: () => number;
   selectedId?: () => string | null;
+  /** workers on foot; defaults to the live coordination feed */
+  pedestrians?: () => Pedestrian[];
 }
 
 export interface MapCanvasProps {
@@ -302,6 +304,16 @@ export function MapCanvas({
           if (cell) destinations.set(selectedId, cell);
         }
       }
+      // priority-inheritance arrows, resolved from robot ids to on-screen positions
+      const byId = new Map(visuals.map((v) => [v.id, v]));
+      const pushes: { from: RobotVisual; to: RobotVisual; age: number }[] = [];
+      if (view.pushes && !compact) {
+        for (const p of store.recentPushes) {
+          const from = byId.get(p.from);
+          const to = byId.get(p.to);
+          if (from && to) pushes.push({ from, to, age: now - p.at });
+        }
+      }
       drawDynamic(dctx, map, vp, visuals, {
         trails: view.trails,
         comms: view.comms,
@@ -316,6 +328,10 @@ export function MapCanvas({
         sansFont: fonts.sans,
         commsRange: 12,
         destinations,
+        heat: view.heat && !compact ? store.heat : null,
+        pushes,
+        packets: view.packets && !compact,
+        pedestrians: src.pedestrians ? src.pedestrians() : (store.coordination?.pedestrians ?? []),
       });
     };
     raf = requestAnimationFrame(frame);

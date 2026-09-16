@@ -6,7 +6,8 @@ import { useThrottled } from "@/lib/hooks";
 export function SafetyTiles({ compact = false }: { compact?: boolean }) {
   const fleet = useThrottled((s) => s.fleet, 600);
   const collisions = fleet?.collisions ?? 0;
-  const bad = collisions > 0;
+  const contacts = fleet?.pedestrian_contacts ?? 0;
+  const bad = collisions > 0 || contacts > 0;
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 ${compact ? "" : ""}`}>
       <div
@@ -16,13 +17,16 @@ export function SafetyTiles({ compact = false }: { compact?: boolean }) {
           background: bad ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.08)",
           boxShadow: bad ? "0 0 18px rgba(239,68,68,0.35)" : "0 0 14px rgba(34,197,94,0.12)",
         }}
-        title="Inter-robot collisions since start. Must stay 0 — cells are reserved before entry."
+        title="Robot–robot collisions and robot–worker contacts since start. Both must stay 0: PIBT reserves cells before entry, the sensor veto and ORCA hold clearance from anything the radio cannot reach."
       >
         {bad ? <ShieldAlert className="h-7 w-7 text-offline" /> : <ShieldCheck className="h-7 w-7 text-charging" />}
         <div>
           <div className="text-[11px] uppercase tracking-wider text-text-2">Collisions</div>
           <div className={`mono text-[30px] leading-none font-semibold ${bad ? "text-offline" : "text-charging"}`}>
             {fleet ? collisions : "—"}
+            <span className={`text-[12px] ml-2 ${contacts > 0 ? "text-offline" : "text-text-2"}`} title="robot–worker contacts">
+              · {fleet ? contacts : "—"} <span className="text-[10px] uppercase tracking-wider">worker</span>
+            </span>
           </div>
         </div>
       </div>

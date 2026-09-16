@@ -1,25 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronsUp, Eye, X } from "lucide-react";
+import { ChevronsUp, Crosshair, Eye, X } from "lucide-react";
 import { useFleetStore } from "@/lib/store";
 import { cellLabel, locationCode } from "@/lib/sim/map";
 import { STATE_COLORS, STATE_LABELS } from "@/lib/theme";
 import { fmtSimTime } from "@/lib/format";
 import { BatteryBar, KV, StateChip } from "../ui";
+import { DecisionInspector } from "./DecisionInspector";
 
 export function AmrDetailsCard({
   robotId,
   onClose,
   extended = false,
+  followable = false,
   className = "",
 }: {
   robotId: string;
   onClose?: () => void;
   extended?: boolean;
+  /** show the camera-lock toggle (Hub) */
+  followable?: boolean;
   className?: string;
 }) {
   const r = useFleetStore((s) => s.robots[robotId]);
+  const follow = useFleetStore((s) => s.follow);
+  const setFollow = useFleetStore((s) => s.setFollow);
   const info = useFleetStore((s) => s.robotInfo[robotId]);
   const map = useFleetStore((s) => s.map);
   const simNow = useFleetStore((s) => s.clock?.ts ?? 0);
@@ -36,6 +42,15 @@ export function AmrDetailsCard({
           <span className="inline-flex items-center gap-1 rounded border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent mr-1" title="No remote-control actions exist on this dashboard">
             <Eye className="h-3 w-3" /> Observe only
           </span>
+          {followable && (
+            <button
+              onClick={() => setFollow(follow === robotId ? null : robotId)}
+              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] mr-1 ${follow === robotId ? "border-accent bg-accent/20 text-accent" : "border-panel-border text-text-2 hover:text-text"}`}
+              title={follow === robotId ? "Stop following" : "Lock the camera onto this robot"}
+            >
+              <Crosshair className="h-3 w-3" /> {follow === robotId ? "following" : "follow"}
+            </button>
+          )}
           <ChevronsUp className="h-3.5 w-3.5 opacity-60" />
           {onClose && (
             <button onClick={onClose} className="hover:text-text" aria-label="Close">
@@ -99,6 +114,12 @@ export function AmrDetailsCard({
         <KV k="Yields" v={r.yield_count} mono />
         <KV k="Tasks done" v={r.tasks_done} mono />
         <KV k="Last updated" v={`${fmtSimTime(r.ts)} · ${age < 1 ? "<1" : age.toFixed(0)} s`} mono />
+        <div className="h-px bg-panel-border my-1.5" />
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-medium text-text">Why it moved · PIBT this tick</span>
+          <span className="text-[10px] text-text-3">cells weighed · distance to goal</span>
+        </div>
+        <DecisionInspector robotId={robotId} compact={!extended} />
         {extended && info && (
           <>
             <div className="h-px bg-panel-border my-1.5" />

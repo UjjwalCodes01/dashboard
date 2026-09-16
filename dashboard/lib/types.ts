@@ -58,6 +58,11 @@ export interface RobotStateMsg {
   tasks_done: number;
   destination: string | null;
   health: { overall: "PASS" | "WARN" | "FAIL"; failed: string[] };
+  /** speed the route asked for and the cap ORCA imposed this tick, m/s */
+  desired_speed: number;
+  orca_cap: number;
+  /** index of the communication group this robot planned with this tick; -1 when offline */
+  comms_group: number;
 }
 
 export interface RobotInfo {
@@ -94,6 +99,8 @@ export interface FleetStatsMsg {
   yields_total: number;
   msgs_per_sec_total: number;
   throughput_per_min: number;
+  /** robot-in-same-cell-as-a-worker events; must stay 0 */
+  pedestrian_contacts: number;
 }
 
 export type EventLevel = "info" | "warn" | "error";
@@ -156,6 +163,48 @@ export interface NetworkMsg {
   blocked_cells: Cell[];
   disabled: string[];
   discovery_msgs_per_sec: number;
+}
+
+/** One cell PIBT weighed for a robot this tick, and what happened to it. */
+export interface PibtCandidate {
+  cell: Cell;
+  /** exact grid distance from that cell to the robot's goal; -1 = unreachable */
+  dist: number;
+  /** chosen · hold · blocked · obstacle · unreachable · claimed:<id> · swap:<id> · push-failed:<id> */
+  verdict: string;
+}
+
+export interface PibtDecision {
+  group: number;
+  priority: number;
+  chosen: Cell | null;
+  candidates: PibtCandidate[];
+  pushed_by?: string;
+  pushed?: string;
+  /** why the robot did not move this tick, when it did not */
+  held_reason?: string;
+}
+
+/** A worker walking an aisle: a body the fleet can see but cannot negotiate with. */
+export interface Pedestrian {
+  id: string;
+  /** continuous position in cell units (cell centre = +0.5) */
+  x: number;
+  y: number;
+  cell: Cell;
+  heading: number;
+  moving: boolean;
+}
+
+/** Per-tick view into the coordinator: who planned with whom, who pushed whom, and why. */
+export interface CoordinationMsg {
+  type: "coordination";
+  ts: number;
+  groups: string[][];
+  pushes: [string, string][];
+  held: string[];
+  decisions: Record<string, PibtDecision>;
+  pedestrians: Pedestrian[];
 }
 
 export interface BenchmarkSide {
@@ -255,7 +304,8 @@ export type ServerMsg =
   | BenchmarkMsg
   | HealthReportMsg
   | MapMsg
-  | SimClockMsg;
+  | SimClockMsg
+  | CoordinationMsg;
 
 // ---- client → server (the only allowed ones) ----
 
@@ -266,7 +316,17 @@ export type FaultAction =
   | "disable_robot"
   | "partition"
   | "set_loss"
-  | "set_latency";
+  | "set_latency"
+  /** put a worker into an aisle (near `cell` if given) */
+  | "pedestrian"
+  /** every link down (value=false) or up (value=true) */
+  | "all_links"
+  /** every link down for `seconds`, then restored by the engine */
+  | "blackout"
+  /** set one robot's battery to `value` % */
+  | "set_battery"
+  /** multiply task arrival by `value` for `seconds` */
+  | "task_surge";
 
 export interface FaultMsg {
   type: "fault";
@@ -274,6 +334,7 @@ export interface FaultMsg {
   target?: string;
   cell?: Cell;
   value?: boolean | number | string[][];
+  seconds?: number;
 }
 
 export interface IssueTaskMsg {

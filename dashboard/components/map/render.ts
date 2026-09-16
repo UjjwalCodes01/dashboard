@@ -1,4 +1,4 @@
-import type { Cell, RobotState, RobotStateMsg } from "@/lib/types";
+import type { Cell, Pedestrian, RobotState, RobotStateMsg } from "@/lib/types";
 import type { WarehouseMap } from "@/lib/sim/map";
 import { COLORS, STATE_COLORS, batteryColor } from "@/lib/theme";
 
@@ -344,6 +344,13 @@ export interface DynamicOptions {
   commsRange: number;
   destinations: Map<string, Cell>;
   partitions?: string[][];
+  /** congestion field, drawn under everything */
+  heat?: { occ: Float32Array; wait: Float32Array; w: number } | null;
+  /** priority-inheritance arrows: pusher → pushed, with wall-clock age in ms */
+  pushes?: { from: RobotVisual; to: RobotVisual; age: number }[];
+  /** animate message packets along every peer link */
+  packets?: boolean;
+  pedestrians?: Pedestrian[];
 }
 
 function hatch(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
@@ -372,6 +379,31 @@ export function drawDynamic(
 ) {
   const { cs } = vp;
   ctx.clearRect(0, 0, vp.width, vp.height);
+
+  // congestion heat: cyan where robots flow, shifting to amber and red where they stand still.
+  // Normalised to the current peak so it reads the same at any traffic level.
+  if (o.heat) {
+    const { occ, wait, w } = o.heat;
+    let peak = 0;
+    for (let i = 0; i < occ.length; i++) if (occ[i] > peak) peak = occ[i];
+    if (peak > 2) {
+      const h = occ.length / w;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = y * w + x;
+          const v = occ[i] / peak;
+          if (v < 0.035) continue;
+          const stopped = Math.min(1, wait[i] / Math.max(1, occ[i]));
+          const [px, py] = toScreen(vp, x, y);
+          const r = Math.round(34 + (239 - 34) * stopped);
+          const g = Math.round(211 - (211 - 68) * stopped);
+          const b = Math.round(238 - (238 - 68) * stopped);
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.07 + Math.sqrt(v) * 0.45})`;
+          ctx.fillRect(px, py, cs, cs);
+        }
+      }
+    }
+  }
 
   // charging bays: live state (green charging · amber reserved · grey idle)
   for (const ch of map.chargers) {
@@ -461,12 +493,17 @@ export function drawDynamic(
         ctx.moveTo(ax, ay);
         ctx.lineTo(bx, by);
         ctx.stroke();
-        if (strong) {
-          // little "ack" dot travelling along the link
-          const ph = ((o.nowMs / 900) + r.id.length) % 1;
-          ctx.fillStyle = "#67e8f9";
+        if (strong || o.packets) {
+          // intent packets travelling both ways along the link — the "gossip bus" made visible
+          const seed = (r.id.charCodeAt(4) * 7 + nid.charCodeAt(4) * 13) % 97;
+          const ph = ((o.nowMs / 900) + seed / 97) % 1;
+          ctx.fillStyle = strong ? "#67e8f9" : "rgba(103, 232, 249, 0.55)";
           ctx.beginPath();
-          ctx.arc(ax + (bx - ax) * ph, ay + (by - ay) * ph, 2, 0, Math.PI * 2);
+          ctx.arc(ax + (bx - ax) * ph, ay + (by - ay) * ph, strong ? 2 : 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          const ph2 = ((o.nowMs / 1300) + (seed * 3) / 97) % 1;
+          ctx.beginPath();
+          ctx.arc(bx + (ax - bx) * ph2, by + (ay - by) * ph2, strong ? 2 : 1.5, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -534,6 +571,49 @@ export function drawDynamic(
       ctx.beginPath();
       ctx.arc(px, py, cs * 0.3, 0, Math.PI * 2);
       ctx.stroke();
+    }
+  }
+
+  // priority inheritance as it happens: an arrow from the robot that pushed to the one that gave way
+  if (o.pushes && o.pushes.length) {
+    for (const p of o.pushes) {
+      const alpha = Math.max(0, 1 - p.age / 1600);
+      if (alpha <= 0) continue;
+      const [ax, ay] = toScreen(vp, p.from.x + 0.5, p.from.y + 0.5);
+      const [bx, by] = toScreen(vp, p.to.x + 0.5, p.to.y + 0.5);
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const cxp = (ax + bx) / 2 + nx * Math.min(28, len * 0.35);
+      const cyp = (ay + by) / 2 + ny * Math.min(28, len * 0.35);
+      // stop short of the pushed robot's body
+      const shrink = Math.max(6, cs * 0.55);
+      const tx = bx - ((bx - cxp) / Math.hypot(bx - cxp, by - cyp || 1)) * shrink;
+      const ty = by - ((by - cyp) / Math.hypot(bx - cxp, by - cyp || 1)) * shrink;
+      ctx.strokeStyle = `rgba(245, 158, 11, ${alpha})`;
+      ctx.fillStyle = `rgba(245, 158, 11, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cxp, cyp, tx, ty);
+      ctx.stroke();
+      const ang = Math.atan2(ty - cyp, tx - cxp);
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - 7 * Math.cos(ang - 0.45), ty - 7 * Math.sin(ang - 0.45));
+      ctx.lineTo(tx - 7 * Math.cos(ang + 0.45), ty - 7 * Math.sin(ang + 0.45));
+      ctx.closePath();
+      ctx.fill();
+      if (cs >= 9 && alpha > 0.45) {
+        ctx.font = `600 9px ${o.sansFont}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = `rgba(253, 230, 138, ${alpha})`;
+        ctx.fillText("PIBT push", cxp, cyp - 6);
+      }
     }
   }
 
@@ -644,6 +724,51 @@ export function drawDynamic(
     ctx.fill();
     ctx.fillStyle = isSel ? "#0B1220" : r.state === "idle" || r.state === "blocked" ? "#1a1a1a" : "#fff";
     ctx.fillText(label, px, ly + 0.5);
+  }
+
+  // workers on foot: hi-vis, with a pulsing keep-clear ring. Drawn last so nothing hides a person.
+  if (o.pedestrians && o.pedestrians.length) {
+    for (const w of o.pedestrians) {
+      const [px, py] = toScreen(vp, w.x, w.y);
+      const ph = (o.nowMs / 1100) % 1;
+      ctx.beginPath();
+      ctx.arc(px, py, cs * (0.75 + ph * 0.5), 0, Math.PI * 2);
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = `rgba(251, 146, 60, ${0.7 * (1 - ph)})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const rad = Math.max(4, cs * 0.32);
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
+      ctx.fillStyle = "#FB923C";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(11, 18, 32, 0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // hi-vis stripe + head dot toward the walking direction
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillRect(px - rad * 0.7, py - rad * 0.15, rad * 1.4, rad * 0.3);
+      const hx = px + (w.heading === 90 ? 0 : 0);
+      const hy = py + (w.heading === 90 ? -rad * 0.55 : rad * 0.55);
+      ctx.beginPath();
+      ctx.arc(hx, hy, rad * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = "#0b1220";
+      ctx.fill();
+      if (cs >= 9) {
+        ctx.font = `700 ${Math.max(8, Math.min(10, cs * 0.55))}px ${o.monoFont}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const label = w.moving ? "worker" : "worker · waiting";
+        const tw = ctx.measureText(label).width;
+        const ly = py - rad - 9;
+        ctx.fillStyle = "#FB923C";
+        rr(ctx, px - tw / 2 - 4, ly - 7, tw + 8, 14, 3);
+        ctx.fill();
+        ctx.fillStyle = "#0b1220";
+        ctx.fillText(label, px, ly + 0.5);
+      }
+    }
   }
 }
 

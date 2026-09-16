@@ -20,6 +20,8 @@ export default function HubPage() {
   const scenario = useFleetStore((s) => s.scenario);
   const phase = useFleetStore((s) => s.clock?.scenario_phase);
   const fleet = useThrottled((s) => s.fleet, 800);
+  const follow = useFleetStore((s) => s.follow);
+  const setFollow = useFleetStore((s) => s.setFollow);
   const def = SCENARIOS[scenario];
   const collisions = fleet?.collisions ?? 0;
 
@@ -27,7 +29,17 @@ export default function HubPage() {
     <main className="page-dark dash-main relative">
       {/* map stage: fixed height on mobile, fills the area left of the rail on desktop */}
       <div className="relative h-[52vh] min-h-[320px] lg:h-auto lg:min-h-0 lg:absolute lg:inset-y-0 lg:left-0 lg:right-[345px]">
-        <MapCanvas className="absolute inset-0" onOpenRobot={(id) => router.push(`/robots/${id}`)} />
+        <MapCanvas className="absolute inset-0" onOpenRobot={(id) => router.push(`/robots/${id}`)} focusRobotId={follow} focusZoom={2.2} />
+
+        {follow && (
+          <button
+            onClick={() => setFollow(null)}
+            className="absolute top-12 lg:top-14 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-2 rounded-md border border-accent/60 bg-accent/15 px-3 py-1 text-[12px] text-accent backdrop-blur"
+            title="Stop following"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-accent pulse" /> following <span className="mono font-semibold">{follow}</span> · click to release
+          </button>
+        )}
 
         {/* top centre: scenario + safety pins */}
         <div className="absolute top-2 lg:top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none max-w-[calc(100%-16px)]">
@@ -52,7 +64,7 @@ export default function HubPage() {
         {/* details: side card on desktop, bottom sheet on mobile */}
         {selected ? (
           <div className="absolute inset-x-2 bottom-2 max-h-[64%] overflow-y-auto rounded-md lg:inset-x-auto lg:bottom-auto lg:top-3 lg:left-3 lg:max-h-[calc(100%-24px)]">
-            <AmrDetailsCard robotId={selected} onClose={() => select(null)} />
+            <AmrDetailsCard robotId={selected} onClose={() => select(null)} followable />
           </div>
         ) : (
           <div className="hidden lg:block absolute top-3 left-3 rounded-md border border-panel-border bg-[#0d1528]/90 backdrop-blur px-3 py-2 text-[12px] text-text-2 max-w-[260px]">
@@ -63,7 +75,7 @@ export default function HubPage() {
         {/* bottom-left: legend + toggles */}
         {/* right-16 on phones keeps the toggle strip clear of the map's ⤢ fit button */}
         <div className={`absolute bottom-2 left-2 right-16 lg:right-auto lg:bottom-3 lg:left-3 items-end gap-2 ${selected ? "hidden lg:flex" : "flex"}`}>
-          <LegendCard className="hidden lg:block w-[210px]" />
+          {!selected && <LegendCard className="hidden lg:block w-[210px]" />}
           <div className="max-w-full overflow-x-auto hide-scrollbar">
             <ViewToggles className="whitespace-nowrap" />
           </div>

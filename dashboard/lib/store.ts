@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   BenchmarkMsg,
   ClientMsg,
+  CoordinationMsg,
   EventMsg,
   FleetStatsMsg,
   HealthReportMsg,
@@ -34,6 +35,41 @@ export interface ViewToggles {
   lanes: boolean;
   chokes: boolean;
   links: boolean;
+  /** congestion heatmap: where robots have been, hot where they stood still */
+  heat: boolean;
+  /** PIBT priority-inheritance arrows as they fire */
+  pushes: boolean;
+  /** message packets animating along peer links */
+  packets: boolean;
+}
+
+/** One recorded tick, for the replay scrubber. Robot messages are fresh objects per tick, so sharing refs is safe. */
+export interface Frame {
+  ts: number;
+  robots: Record<string, RobotStateMsg>;
+  coordination: CoordinationMsg | null;
+  fleet: FleetStatsMsg | null;
+  network: NetworkMsg | null;
+  clock: SimClockMsg | null;
+  /** this tick carried a conflict event — a jump target for the scrubber */
+  conflict: boolean;
+}
+
+export interface FleetSample {
+  ts: number;
+  throughput: number;
+  collisions: number;
+  deadlocks: number;
+  msgs: number;
+  blocked: number;
+  contacts: number;
+}
+
+export interface HeatField {
+  occ: Float32Array;
+  wait: Float32Array;
+  w: number;
+  h: number;
 }
 
 export type TransportKind = "mock" | "ws";
@@ -64,6 +100,19 @@ export interface FleetStore {
   /** wall-clock (performance.now) of the last conflict event per cell key "x,y" — used for choke pulses */
   conflictPulses: Record<string, number>;
   tickCount: number;
+  coordination: CoordinationMsg | null;
+  /** priority-inheritance arrows still worth drawing, with the wall-clock they fired at */
+  recentPushes: { from: string; to: string; at: number }[];
+  heat: HeatField | null;
+  fleetHistory: FleetSample[];
+  /** ring buffer of ticks for the replay scrubber; mutated in place, capped */
+  recording: Frame[];
+  /** null = live; otherwise the frame index being shown */
+  replayIndex: number | null;
+  paused: boolean;
+  /** robot the Hub camera is locked onto */
+  follow: string | null;
+  paletteOpen: boolean;
 
   sender: ((m: ClientMsg) => void) | null;
   applyMessages: (msgs: ServerMsg[]) => void;
@@ -80,11 +129,23 @@ export interface FleetStore {
   upsertTemplate: (t: TaskTemplate) => void;
   deleteTemplate: (id: string) => void;
   issueTemplate: (id: string, count: number, priority: TaskPriority) => void;
+  setPaused: (paused: boolean) => void;
+  scrubTo: (index: number) => void;
+  stepReplay: (delta: number) => void;
+  jumpConflict: (dir: 1 | -1) => void;
+  goLive: () => void;
+  setFollow: (id: string | null) => void;
+  setPalette: (open: boolean) => void;
 }
 
 const MAX_EVENTS = 400;
 const MAX_TASKS = 240;
 const MAX_HISTORY = 120;
+/** 5 minutes at 5 Hz */
+const MAX_FRAMES = 1500;
+const MAX_FLEET_SAMPLES = 360;
+/** per-tick decay of the heat field; half-life ≈ 28 s at 5 Hz */
+const HEAT_DECAY = 0.9955;
 
 export const useFleetStore = create<FleetStore>((set, get) => ({
   connected: false,
@@ -107,10 +168,19 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
   timeScale: 1,
   selectedRobotId: null,
   hoverRobotId: null,
-  view: { trails: true, comms: false, grid: false, labels: true, lanes: true, chokes: true, links: true },
+  view: { trails: true, comms: false, grid: false, labels: true, lanes: true, chokes: true, links: true, heat: false, pushes: true, packets: true },
   templates: [],
   conflictPulses: {},
   tickCount: 0,
+  coordination: null,
+  recentPushes: [],
+  heat: null,
+  fleetHistory: [],
+  recording: [],
+  replayIndex: null,
+  paused: false,
+  follow: null,
+  paletteOpen: false,
   sender: null,
 
   applyMessages: (msgs) =>
@@ -134,6 +204,12 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
       let map = s.map;
       let conflictPulses = s.conflictPulses;
       let pulsesCloned = false;
+      let coordination = s.coordination;
+      let recentPushes = s.recentPushes;
+      let heat = s.heat;
+      let fleetHistory = s.fleetHistory;
+      let sawRobot = false;
+      let sawConflict = false;
       const now = typeof performance !== "undefined" ? performance.now() : Date.now();
 
       for (const m of msgs) {
@@ -144,6 +220,14 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
               robotsCloned = true;
             }
             robots[m.robot_id] = m;
+            sawRobot = true;
+            if (heat && m.state !== "offline") {
+              const hi = m.cell[1] * heat.w + m.cell[0];
+              if (hi >= 0 && hi < heat.occ.length) {
+                heat.occ[hi] += 1;
+                if (m.speed < 0.05 && m.state !== "charging" && m.state !== "idle") heat.wait[hi] += 1;
+              }
+            }
             if (!robotIds.includes(m.robot_id)) robotIds = [...robotIds, m.robot_id].sort();
             const h = history[m.robot_id];
             const last = h && h.length ? h[h.length - 1] : null;
@@ -173,13 +257,33 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
           }
           case "fleet_stats":
             fleet = m;
+            fleetHistory = fleetHistory.length >= MAX_FLEET_SAMPLES ? fleetHistory.slice(-(MAX_FLEET_SAMPLES - 1)) : fleetHistory.slice();
+            fleetHistory.push({
+              ts: m.ts,
+              throughput: m.throughput_per_min,
+              collisions: m.collisions,
+              deadlocks: m.deadlocks_resolved,
+              msgs: m.msgs_per_sec_total,
+              blocked: m.blocked,
+              contacts: m.pedestrian_contacts ?? 0,
+            });
             break;
+          case "coordination": {
+            coordination = m;
+            const kept = recentPushes.filter((p) => now - p.at < 2500);
+            if (m.pushes.length || kept.length !== recentPushes.length) {
+              recentPushes = kept;
+              for (const [from, to] of m.pushes) recentPushes.push({ from, to, at: now });
+            }
+            break;
+          }
           case "event": {
             if (!eventsCloned) {
               events = events.slice(-(MAX_EVENTS - 1));
               eventsCloned = true;
             }
             events.push(m);
+            if (m.category === "conflict") sawConflict = true;
             if (m.category === "conflict" && m.cell) {
               if (!pulsesCloned) {
                 conflictPulses = { ...conflictPulses };
@@ -210,10 +314,24 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
           case "clock":
             clock = m;
             break;
-          case "map":
+          case "map": {
             map = analyseMap(m);
+            heat = { occ: new Float32Array(map.width * map.height), wait: new Float32Array(map.width * map.height), w: map.width, h: map.height };
             break;
+          }
         }
+      }
+      if (sawRobot && heat) {
+        const { occ, wait } = heat;
+        for (let i = 0; i < occ.length; i++) {
+          occ[i] *= HEAT_DECAY;
+          wait[i] *= HEAT_DECAY;
+        }
+      }
+      if (sawRobot && s.replayIndex === null) {
+        const rec = s.recording;
+        rec.push({ ts: clock?.ts ?? 0, robots, coordination, fleet, network, clock, conflict: sawConflict });
+        if (rec.length > MAX_FRAMES) rec.splice(0, rec.length - MAX_FRAMES);
       }
       if (taskIds.length > MAX_TASKS) {
         // drop the oldest finished tasks
@@ -249,6 +367,10 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
         clock,
         map,
         conflictPulses,
+        coordination,
+        recentPushes,
+        heat,
+        fleetHistory,
         tickCount: s.tickCount + 1,
       };
     }),
@@ -270,8 +392,63 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
   },
   setTimeScale: (k) => {
     set({ timeScale: k });
-    get().send({ type: "time_scale", value: k });
+    if (!get().paused) get().send({ type: "time_scale", value: k });
   },
+  setPaused: (paused) => {
+    if (get().paused === paused) return;
+    set({ paused });
+    get().send({ type: "time_scale", value: paused ? 0 : get().timeScale });
+  },
+  scrubTo: (index) => {
+    const st = get();
+    const i = Math.max(0, Math.min(st.recording.length - 1, Math.round(index)));
+    const f = st.recording[i];
+    if (!f) return;
+    if (!st.paused) st.setPaused(true);
+    set({
+      replayIndex: i,
+      robots: f.robots,
+      coordination: f.coordination,
+      fleet: f.fleet ?? st.fleet,
+      network: f.network ?? st.network,
+      clock: f.clock ? { ...f.clock, ts: f.ts } : st.clock,
+      recentPushes: f.coordination ? f.coordination.pushes.map(([from, to]) => ({ from, to, at: performance.now() })) : [],
+    });
+  },
+  stepReplay: (delta) => {
+    const st = get();
+    const cur = st.replayIndex ?? st.recording.length - 1;
+    st.scrubTo(cur + delta);
+  },
+  jumpConflict: (dir) => {
+    const st = get();
+    const rec = st.recording;
+    let i = st.replayIndex ?? rec.length - 1;
+    for (let k = 0; k < rec.length; k++) {
+      i += dir;
+      if (i < 0 || i >= rec.length) return;
+      if (rec[i].conflict) {
+        st.scrubTo(i);
+        return;
+      }
+    }
+  },
+  goLive: () => {
+    const st = get();
+    const last = st.recording[st.recording.length - 1];
+    if (last)
+      set({
+        robots: last.robots,
+        coordination: last.coordination,
+        fleet: last.fleet ?? st.fleet,
+        network: last.network ?? st.network,
+        clock: last.clock ?? st.clock,
+      });
+    set({ replayIndex: null, recentPushes: [] });
+    st.setPaused(false);
+  },
+  setFollow: (id) => set({ follow: id }),
+  setPalette: (open) => set({ paletteOpen: open }),
   resetSim: () =>
     set({
       robots: {},
@@ -285,6 +462,14 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
       clock: null,
       conflictPulses: {},
       selectedRobotId: null,
+      coordination: null,
+      recentPushes: [],
+      heat: get().heat ? { ...get().heat!, occ: new Float32Array(get().heat!.occ.length), wait: new Float32Array(get().heat!.wait.length) } : null,
+      fleetHistory: [],
+      recording: [],
+      replayIndex: null,
+      paused: false,
+      follow: null,
     }),
   initTemplates: () => {
     if (get().templates.length) return;

@@ -1,15 +1,26 @@
 /**
- * Mock fleet engine — Round 1 scripted telemetry on the final schema.
+ * Fleet engine — real decentralised coordination on the final telemetry schema.
  *
- * Every robot decides its own next step from the shared intent picture (mock of PIBT):
- *   • cells are reserved before entry, so two robots can never share a cell (collisions = 0 by construction)
- *   • head-on in a one-lane aisle: lower priority (longer remaining path, ties by ID) yields —
- *     it re-routes if a short detour exists, otherwise backs up to the last intersection and side-steps
- *   • blocked aisle → local re-plan; if the cost jumps past the threshold the task is released and re-auctioned
- *   • task allocation = Contract Net Protocol auction: every idle robot bids dist + 0.5·queue + battery penalty,
- *     the lowest bid self-assigns. The dashboard never picks the robot.
- * `mode: "baseline"` switches to stop-and-wait: no intent sharing, no yielding — a robot simply stops when the
- * next cell is occupied and only re-plans after a deadlock timeout. Used by the Benchmark page.
+ * `mode: "ours"` runs a three-layer stack, split by what each layer needs in order to function:
+ *
+ *   1. PIBT (./pibt.ts) picks each robot's next cell. Vertex and swap conflicts are impossible by
+ *      construction, and dynamic priorities push a starved robot through. It needs peers to agree,
+ *      so it runs once per *communication group* and stops at the edge of the radio.
+ *   2. A sensor veto refuses to enter a cell another robot still occupies. Lidar only, no radio.
+ *   3. ORCA (./orca.ts) caps speed for continuous-space separation. Lidar only, no radio.
+ *
+ * Layers 2 and 3 are why the collision count stays at zero when a link dies, the fleet partitions,
+ * or a robot is killed: coordination degrades, safety does not.
+ *
+ * Around that: task allocation is a Contract Net Protocol auction — every idle robot bids
+ * dist + 0.5·queue + battery penalty on-board and the lowest bid self-assigns, so the dashboard
+ * never picks a robot. A blocked aisle triggers a local re-plan, and if the detour is expensive
+ * enough the task is released and re-auctioned. Robots broadcast the next 8 cells they intend to
+ * occupy, read straight off the same distance field PIBT descends, so the published intent is
+ * genuinely what the robot will do.
+ *
+ * `mode: "baseline"` is the comparison engine for the Benchmark page and is deliberately left
+ * alone: naive stop-and-wait, or a central zone-lock traffic controller when `zoneLock` is set.
  */
 import type {
   Cell,
@@ -36,8 +47,13 @@ import type {
   Block,
   BlockKind,
   CheckResult,
+  CoordinationMsg,
+  PibtDecision,
+  Pedestrian
 } from "../types";
 import { astar } from "./pathfinding";
+import { DistanceTable, bumpPriority, pibtStep, type PibtAgent } from "./pibt";
+import { orcaLines, safeSpeedAlong, type OrcaAgent, type OrcaNeighbour, type Vec2 } from "./orca";
 import { Rng } from "./rng";
 import {
   cellIdx,
@@ -162,9 +178,42 @@ interface Robot {
   conflictUntil: number;
   clockSkew: number;
   offlineByFault: boolean;
+  /** PIBT priority. Climbs every tick the robot is short of its goal, resets on arrival. */
+  pibtPriority: number;
+  /** unique tie-break floor this robot falls back to once it arrives */
+  pibtBase: number;
+  desiredSpeed: number;
+  orcaCap: number;
+  /** communication group index this tick, -1 when offline or not planned */
+  commsGroup: number;
+  /** why it stood still this tick, for the inspector */
+  heldReason: string | null;
 }
 
+/** A worker walking an aisle. Not an agent: nobody negotiates with them, everyone gives way. */
+interface Ped {
+  id: string;
+  label: string;
+  col: number;
+  /** continuous position along the aisle in cell units; the cell is floor(y) */
+  y: number;
+  y0: number;
+  y1: number;
+  dir: 1 | -1;
+  speed: number;
+  crossings: number;
+  moving: boolean;
+}
+const PED_RADIUS = 0.4;
+
 const COMMS_RANGE = 12;
+/** Cells are 1 m. A 0.35 m body radius leaves 0.3 m of clearance between robots in adjacent cells. */
+const ROBOT_RADIUS = 0.35;
+/** Lidar / camera reach. Deliberately independent of the radio: this is what still works when the
+ *  link dies, and it is why the sensor veto and the ORCA filter below need no communication. */
+const SENSOR_RANGE = 3.5;
+/** Seconds of separation ORCA guarantees. */
+const ORCA_HORIZON = 2.0;
 const BATTERY_FLOOR = 20;
 const CHARGE_TO = 88;
 
@@ -219,6 +268,17 @@ export class FleetEngine {
   private plannerSamples: number[] = [];
   private finished = false;
   /** one-lane aisle segment id per cell (−1 = open area / intersection). Baseline locks whole segments. */
+  private dist: DistanceTable;
+  private pedestrians: Ped[] = [];
+  private pedSeq = 0;
+  private pedestrianContacts = 0;
+  private taskRateMult = 1;
+  private blackoutUntil = -1;
+  private surgeUntil = -1;
+  private lastPushes: [string, string][] = [];
+  private lastGroups: string[][] = [];
+  private lastHeld: string[] = [];
+  private lastDecisions: Record<string, PibtDecision> = {};
   private segmentOf: Int32Array;
   private segCount = 0;
   /** baseline variant: true = central zone lock (traffic controller), false = naive stop-and-wait */
@@ -235,6 +295,7 @@ export class FleetEngine {
     this.benchmark = opts.benchmark;
     this.zoneLock = opts.zoneLock ?? false;
     this.templates = defaultTemplates();
+    this.dist = new DistanceTable(opts.map);
     this.segmentOf = this.buildSegments();
     const count = Math.max(3, Math.min(12, opts.robotCount ?? 6));
     this.spawnRobots(count);
@@ -317,6 +378,12 @@ export class FleetEngine {
         dwelling: false,
         linkOk: true,
         neighbours: [],
+        pibtPriority: i * 1e-3,
+        pibtBase: i * 1e-3,
+        desiredSpeed: 0,
+        orcaCap: 0,
+        commsGroup: -1,
+        heldReason: null,
         plannerMs: 3,
         msgsPerSec: 5,
         yieldCount: 0,
@@ -467,6 +534,36 @@ export class FleetEngine {
         }
         break;
       }
+      case "pedestrian": {
+        const col = this.nearestVerticalAisle(msg.cell);
+        const mid = msg.cell ? msg.cell[1] : 4 + Math.floor(this.rng.next() * 30);
+        const y0 = Math.max(1, mid - 9);
+        const y1 = Math.min(this.map.height - 1, mid + 9);
+        this.spawnPedestrian(col, y0, y1, 0.6, 2, "worker");
+        break;
+      }
+      case "all_links":
+        this.setAllLinks(msg.value !== false, "operator");
+        break;
+      case "blackout": {
+        const secs = Math.max(5, Math.min(180, Number(msg.seconds ?? msg.value) || 30));
+        this.blackoutUntil = this.t + secs;
+        this.setAllLinks(false, `blackout for ${secs} s`);
+        break;
+      }
+      case "set_battery": {
+        const r = msg.target ? this.robotById.get(msg.target) : null;
+        if (r) this.setBattery(r, Number(msg.value) || 22);
+        break;
+      }
+      case "task_surge": {
+        const mult = Math.max(1, Math.min(8, Number(msg.value) || 4));
+        const secs = Math.max(10, Math.min(300, Number(msg.seconds) || 60));
+        this.taskRateMult = mult;
+        this.surgeUntil = this.t + secs;
+        this.event("warn", "task", null, `Order surge: task arrivals ×${mult} for ${secs} s — auction under load`);
+        break;
+      }
       case "set_loss":
         this.lossPct = Math.max(0, Math.min(90, Number(msg.value) || 0));
         this.networkDirty = true;
@@ -519,6 +616,15 @@ export class FleetEngine {
     if (this.finished) return;
     this.t += dt;
     this.runInjections();
+    if (this.blackoutUntil > 0 && this.t >= this.blackoutUntil) {
+      this.blackoutUntil = -1;
+      this.setAllLinks(true, "blackout over");
+    }
+    if (this.surgeUntil > 0 && this.t >= this.surgeUntil) {
+      this.surgeUntil = -1;
+      this.taskRateMult = 1;
+      this.event("info", "task", null, "Order surge over — arrival rate back to normal, backlog clearing through the auction");
+    }
     this.startScriptedLegs();
     if (!this.benchmark) this.generateTasks();
     this.runAuctions();
@@ -528,7 +634,10 @@ export class FleetEngine {
     this.checkCollisions();
     this.updateComms();
     this.updateHealth();
-    if (!this.quiet) for (const r of this.robots) this.emit(this.robotMsg(r));
+    if (!this.quiet) {
+      for (const r of this.robots) this.emit(this.robotMsg(r));
+      this.emit(this.coordinationMsg());
+    }
     if (this.t - this.lastStats >= 1 - 1e-6) {
       this.lastStats = this.t;
       if (!this.quiet) {
@@ -629,6 +738,21 @@ export class FleetEngine {
         case "partition":
           this.setPartition(inj.groups);
           break;
+        case "all_links":
+          this.setAllLinks(inj.up, "scenario");
+          break;
+        case "set_battery": {
+          const r = this.robotById.get(inj.robot);
+          if (r) this.setBattery(r, inj.pct);
+          break;
+        }
+        case "task_rate":
+          this.taskRateMult = inj.mult;
+          this.event(inj.mult > 1 ? "warn" : "info", "task", null, inj.mult > 1 ? `Order surge: task arrivals ×${inj.mult} — every idle robot bids on-board, nobody dispatches` : "Order arrivals back to normal");
+          break;
+        case "pedestrian":
+          this.spawnPedestrian(inj.x, inj.y0, inj.y1, inj.speed ?? 0.6, inj.crossings ?? 2, inj.label ?? "worker");
+          break;
         case "heal":
           this.setPartition([]);
           break;
@@ -684,6 +808,7 @@ export class FleetEngine {
       added.push(c);
     }
     if (!added.length) return;
+    this.dist.invalidate();
     this.networkDirty = true;
     const lbl = cellLabel(this.map, added[0][0], added[0][1]);
     this.event("warn", "system", null, `${cap(lbl)} blocked — ${note}`, added[0]);
@@ -694,6 +819,7 @@ export class FleetEngine {
     if (!this.blocked.size) return;
     this.blocked.clear();
     this.blockedNotes.clear();
+    this.dist.invalidate();
     this.networkDirty = true;
     this.event("info", "system", null, "All blocked cells cleared — robots re-plan to shortest routes");
     for (const r of this.robots) {
@@ -811,9 +937,10 @@ export class FleetEngine {
 
   private generateTasks() {
     const pending = this.tasks.filter((t) => t.phase !== "done" && t.robot === null).length;
-    const target = 8 + Math.floor(this.taskRng.next() * 5);
+    const mult = this.taskRateMult;
+    const target = Math.round((8 + Math.floor(this.taskRng.next() * 5)) * mult);
     if (pending >= target) return;
-    const need = Math.min(3, target - pending);
+    const need = Math.min(Math.ceil(3 * mult), target - pending);
     for (let i = 0; i < need; i++) {
       const roll = this.taskRng.next();
       const tpl =
@@ -1341,12 +1468,452 @@ export class FleetEngine {
   }
 
   private moveRobots(dt: number) {
+    if (this.mode === "ours") this.moveRobotsPibt(dt);
+    else this.moveRobotsBaseline(dt);
+  }
+
+  private setAllLinks(up: boolean, why: string) {
+    let changed = 0;
+    for (const r of this.robots) {
+      if (r.mode === "offline" || r.linkOk === up) continue;
+      r.linkOk = up;
+      changed++;
+    }
+    this.networkDirty = true;
+    if (!changed) return;
+    if (up) this.event("info", "network", null, `All ${changed} links restored — ${why}. Intent re-synced, PIBT coordinating again`);
+    else this.event("warn", "network", null, `All ${changed} links down — ${why}. No robot can hear another: cached intent + sensor veto + ORCA only`);
+  }
+
+  private setBattery(r: Robot, pct: number) {
+    r.battery = Math.max(1, Math.min(100, pct));
+    this.event("warn", "battery", r.id, `${r.id} battery reported at ${r.battery.toFixed(0)}%`);
+  }
+
+  private nearestVerticalAisle(cell?: Cell): number {
+    const cols = this.map.vAisles.map((a) => a.x);
+    if (!cols.length) return Math.floor(this.map.width / 2);
+    if (!cell) return cols[Math.floor(this.rng.next() * cols.length)];
+    return cols.reduce((best, x) => (Math.abs(x - cell[0]) < Math.abs(best - cell[0]) ? x : best), cols[0]);
+  }
+
+  private spawnPedestrian(col: number, y0: number, y1: number, speed: number, crossings: number, label: string) {
+    const m = this.map;
+    if (!isFreeCell(m, col, y0) || !isFreeCell(m, col, y1)) return;
+    // start on a free cell that no robot stands on or is entering
+    const taken = new Set<number>();
+    for (const r of this.robots) {
+      taken.add(cellIdx(m, r.cell[0], r.cell[1]));
+      if (r.next) taken.add(cellIdx(m, r.next[0], r.next[1]));
+    }
+    let start = y0;
+    for (let k = 0; k <= 5; k++) {
+      if (isFreeCell(m, col, y0 + k) && !taken.has(cellIdx(m, col, y0 + k))) {
+        start = y0 + k;
+        break;
+      }
+    }
+    const id = `W-${String(++this.pedSeq).padStart(2, "0")}`;
+    this.pedestrians.push({ id, label, col, y: start + 0.5, y0: Math.min(y0, y1), y1: Math.max(y0, y1), dir: 1, speed, crossings, moving: true });
+    const aisle = this.map.vAisles.find((a) => a.x === col)?.name ?? `x=${col}`;
+    this.event("warn", "system", null, `${label} entered aisle ${aisle} on foot (${id}) — robots treat them as an unpredictable body: route around, keep clearance`, [col, start]);
+  }
+
+  /** Cells a worker occupies or is about to step into. */
+  private pedCells(): Set<number> {
+    const out = new Set<number>();
+    const m = this.map;
+    for (const p of this.pedestrians) {
+      const cy = Math.floor(p.y);
+      out.add(cellIdx(m, p.col, cy));
+      if (p.moving) {
+        const ay = Math.floor(p.y + p.dir * 0.6);
+        if (isFreeCell(m, p.col, ay)) out.add(cellIdx(m, p.col, ay));
+      }
+    }
+    return out;
+  }
+
+  /** Workers walk their aisle and back; they stop rather than walk into a robot. */
+  private stepPedestrians(dt: number, occ: Map<number, Robot>) {
+    const m = this.map;
+    const keep: Ped[] = [];
+    for (const p of this.pedestrians) {
+      const target = (p.dir > 0 ? p.y1 : p.y0) + 0.5;
+      if ((target - p.y) * p.dir <= 0.02) {
+        p.crossings--;
+        if (p.crossings <= 0) {
+          const aisle = this.map.vAisles.find((a) => a.x === p.col)?.name ?? `x=${p.col}`;
+          this.event("info", "system", null, `${p.label} (${p.id}) left aisle ${aisle}`);
+          continue;
+        }
+        p.dir = p.dir > 0 ? -1 : 1;
+        keep.push(p);
+        continue;
+      }
+      const curIdx = cellIdx(m, p.col, Math.floor(p.y));
+      const aheadY = Math.floor(p.y + p.dir * 0.6);
+      const aheadIdx = cellIdx(m, p.col, aheadY);
+      const robotAhead = aheadIdx !== curIdx && isFreeCell(m, p.col, aheadY) && occ.has(aheadIdx);
+      p.moving = !robotAhead;
+      if (p.moving) p.y += p.dir * p.speed * dt;
+      keep.push(p);
+    }
+    this.pedestrians = keep;
+  }
+
+  private publicPedestrians(): Pedestrian[] {
+    return this.pedestrians.map((p) => ({
+      id: p.id,
+      x: p.col + 0.5,
+      y: p.y,
+      cell: [p.col, Math.floor(p.y)],
+      heading: p.dir > 0 ? 270 : 90,
+      moving: p.moving,
+    }));
+  }
+
+  private coordinationMsg(): CoordinationMsg {
+    return {
+      type: "coordination",
+      ts: this.t,
+      groups: this.lastGroups,
+      pushes: this.lastPushes,
+      held: this.lastHeld,
+      decisions: this.lastDecisions,
+      pedestrians: this.publicPedestrians(),
+    };
+  }
+
+  // ─────────────────────────── PIBT + ORCA (the "ours" planner) ───────────────────────────
+  //
+  // Three layers, deliberately separated by what each one needs in order to work:
+  //
+  //   1. PIBT       decides which cell each robot enters. Needs peers to agree, so it runs once
+  //                 per communication group and stops at the edge of the radio.
+  //   2. sensor veto refuses to enter a cell a *visible* robot already holds. Needs only lidar, so
+  //                 it still covers encounters between robots that cannot hear each other.
+  //   3. ORCA       caps speed for continuous-space separation. Also lidar-only.
+  //
+  // Layers 2 and 3 are what keep the collision count at zero when the network is degraded.
+
+  /** Connected components of the peer graph — the sets of robots that can actually coordinate. */
+  private commsGroups(rs: Robot[]): Robot[][] {
+    const parent = rs.map((_, i) => i);
+    const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+    for (let i = 0; i < rs.length; i++)
+      for (let j = i + 1; j < rs.length; j++)
+        if (this.canHear(rs[i], rs[j])) {
+          const a = find(i);
+          const b = find(j);
+          if (a !== b) parent[a] = b;
+        }
+    const byRoot = new Map<number, Robot[]>();
+    for (let i = 0; i < rs.length; i++) {
+      const root = find(i);
+      const list = byRoot.get(root);
+      if (list) list.push(rs[i]);
+      else byRoot.set(root, [rs[i]]);
+    }
+    return Array.from(byRoot.values());
+  }
+
+  /**
+   * Shortest route read straight off the BFS distance table.
+   *
+   * This is the same descent PIBT performs, so the 8-cell window the robot broadcasts is genuinely
+   * what it intends to do rather than a separately-computed A* route that PIBT might diverge from.
+   */
+  private pathFromDist(from: Cell, goal: Cell): Cell[] {
+    if (cellEq(from, goal)) return [];
+    const m = this.map;
+    const d = this.dist.table(goal, this.blocked);
+    let cur = from;
+    let dv = d[cellIdx(m, cur[0], cur[1])];
+    if (dv < 0) return []; // standing on a blocked cell, or walled off from the goal
+    const out: Cell[] = [];
+    while (dv > 0 && out.length < 512) {
+      let best: Cell | null = null;
+      let bestD = dv;
+      for (const c of neighbours4(m, cur[0], cur[1])) {
+        const ci = cellIdx(m, c[0], c[1]);
+        if (this.blocked.has(ci)) continue;
+        const nd = d[ci];
+        if (nd >= 0 && nd < bestD) {
+          bestD = nd;
+          best = c;
+        }
+      }
+      if (!best) break;
+      out.push(best);
+      cur = best;
+      dv = bestD;
+    }
+    return out;
+  }
+
+  private syncPath(r: Robot) {
+    if (!r.goal) {
+      r.path = [];
+      r.noPath = false;
+      return;
+    }
+    r.path = this.pathFromDist(r.cell, r.goal);
+    r.noPath = r.path.length === 0 && !cellEq(r.cell, r.goal);
+  }
+
+  /** Continuous position in cell units, interpolated while crossing. */
+  private contPos(r: Robot): Vec2 {
+    const bx = r.cell[0] + 0.5;
+    const by = r.cell[1] + 0.5;
+    if (!r.next) return { x: bx, y: by };
+    return { x: bx + (r.next[0] - r.cell[0]) * r.progress, y: by + (r.next[1] - r.cell[1]) * r.progress };
+  }
+
+  private contVel(r: Robot): Vec2 {
+    if (!r.next) return { x: 0, y: 0 };
+    return { x: (r.next[0] - r.cell[0]) * r.speed, y: (r.next[1] - r.cell[1]) * r.speed };
+  }
+
+  /** Cap the speed PIBT asked for so the robot keeps real clearance from everything it can see. */
+  private orcaSpeed(r: Robot, desired: number, dt: number): number {
+    if (!r.next) return desired;
+    const p = this.contPos(r);
+    const nbs: OrcaNeighbour[] = [];
+    for (const o of this.robots) {
+      if (o === r) continue;
+      const op = this.contPos(o);
+      const dx = op.x - p.x;
+      const dy = op.y - p.y;
+      if (dx * dx + dy * dy > SENSOR_RANGE * SENSOR_RANGE) continue;
+      nbs.push({ position: op, velocity: this.contVel(o), radius: ROBOT_RADIUS });
+    }
+    for (const w of this.pedestrians) {
+      const wx = w.col + 0.5;
+      const dx = wx - p.x;
+      const dy = w.y - p.y;
+      if (dx * dx + dy * dy > SENSOR_RANGE * SENSOR_RANGE) continue;
+      nbs.push({ position: { x: wx, y: w.y }, velocity: { x: 0, y: w.moving ? w.dir * w.speed : 0 }, radius: PED_RADIUS });
+    }
+    if (!nbs.length) return desired;
+    const self: OrcaAgent = { position: p, velocity: this.contVel(r), radius: ROBOT_RADIUS, maxSpeed: desired };
+    const lines = orcaLines(self, nbs, ORCA_HORIZON, Math.max(dt, 1e-3));
+    return safeSpeedAlong(lines, { x: r.next[0] - r.cell[0], y: r.next[1] - r.cell[1] }, desired);
+  }
+
+  private moveRobotsPibt(dt: number) {
+    const m = this.map;
+
+    // a cell counts as taken if a robot stands on it or is already crossing into it
+    const occ = new Map<number, Robot>();
+    for (const r of this.robots) {
+      occ.set(cellIdx(m, r.cell[0], r.cell[1]), r);
+      if (r.next) occ.set(cellIdx(m, r.next[0], r.next[1]), r);
+    }
+
+    this.stepPedestrians(dt, occ);
+    const workerCells = this.pedCells();
+    for (const r of this.robots) {
+      r.commsGroup = -1;
+      r.heldReason = null;
+      r.desiredSpeed = 0;
+      r.orcaCap = 0;
+    }
+    const pushesThisTick: [string, string][] = [];
+    const groupsThisTick: string[][] = [];
+    const heldThisTick: string[] = [];
+    const decisions: Record<string, PibtDecision> = {};
+
+    const movable: Robot[] = [];
+    for (const r of this.robots) {
+      if (r.dwelling) {
+        r.speed = 0;
+        if (this.t >= r.dwellUntil) {
+          r.dwelling = false;
+          if (r.task) {
+            r.task.stepIndex++;
+            this.startStep(r);
+          }
+        } else continue;
+      }
+      if (r.mode === "offline" || r.mode === "charging" || r.mode === "scripted_wait") {
+        r.speed = 0;
+        continue;
+      }
+      movable.push(r);
+    }
+
+    // refresh routes, and let a robot that has arrived pick up the next step of its task
+    for (const r of movable) {
+      if (r.next) continue;
+      this.syncPath(r);
+      if (!r.path.length) {
+        this.onArrive(r);
+        this.syncPath(r);
+      }
+    }
+
+    // ── layer 1: PIBT, once per communication group ──
+    const groups = this.commsGroups(movable);
+    for (let gi = 0; gi < groups.length; gi++) {
+      const group = groups[gi];
+      groupsThisTick.push(group.map((r) => r.id));
+      const ids = new Set(group.map((r) => r.id));
+      const obstacles = new Set<number>(workerCells);
+      for (const o of this.robots) {
+        if (!ids.has(o.id)) {
+          // a robot this group cannot talk to is an unpredictable body, not a teammate
+          obstacles.add(cellIdx(m, o.cell[0], o.cell[1]));
+          if (o.next) obstacles.add(cellIdx(m, o.next[0], o.next[1]));
+        }
+        // A teammate mid-crossing is deliberately *not* an obstacle. Its cell frees up shortly, and
+        // queueing for it is how a corridor drains; treating it as blocked would make followers
+        // route away instead of platooning, which measurably starves choke points.
+      }
+      const agents: PibtAgent[] = group.map((r) => ({
+        id: r.id,
+        cell: r.cell,
+        goal: r.goal,
+        committed: r.next,
+        priority: r.pibtPriority,
+      }));
+      const out = pibtStep(agents, { map: m, blocked: this.blocked, obstacles, dist: this.dist });
+      const stranded = new Set(out.stranded);
+
+      for (const r of group) {
+        r.commsGroup = gi;
+        const tr = out.trace.get(r.id);
+        if (tr) {
+          decisions[r.id] = {
+            group: gi,
+            priority: Math.round(r.pibtPriority * 1000) / 1000,
+            chosen: tr.chosen,
+            candidates: tr.candidates.map((c) => ({ cell: c.cell, dist: c.dist, verdict: c.verdict })),
+            pushed_by: tr.pushedBy,
+            pushed: tr.pushed,
+          };
+        }
+        if (r.next) continue; // mid-crossing, reservation already held
+        const target = out.next.get(r.id);
+        if (!target || cellEq(target, r.cell)) {
+          r.speed = 0;
+          r.stopTime += dt;
+          if (r.waitSince < 0) r.waitSince = this.t;
+          if (r.goal && !cellEq(r.cell, r.goal)) {
+            r.heldReason = stranded.has(r.id) ? "goal unreachable from here" : "no improving move this tick";
+            heldThisTick.push(r.id);
+          }
+          continue;
+        }
+        const ti = cellIdx(m, target[0], target[1]);
+        if (workerCells.has(ti)) {
+          // a person is in or about to enter that cell; nobody negotiates with a person
+          r.speed = 0;
+          r.stopTime += dt;
+          if (r.waitSince < 0) r.waitSince = this.t;
+          r.heldReason = "worker ahead — keeping clear";
+          heldThisTick.push(r.id);
+          continue;
+        }
+        // ── layer 2: sensor veto ──
+        // Only for bodies outside this comms group. Inside it, PIBT has already proved the round
+        // conflict-free, and a robot entering a cell exactly as its neighbour vacates it *is* the
+        // push that gets traffic through a one-lane aisle — vetoing that would undo the algorithm.
+        // The following distance during that hand-over is ORCA's job, in layer 3.
+        // Strict: a robot needs several ticks to cross a cell, so the cell is not free until it has
+        // fully left. A queue therefore starts moving one robot per transit time, which is just
+        // platooning — it costs nothing in steady flow, and PIBT already knew about this constraint
+        // when it planned (see `obstacles` above), so a stalled robot takes an alternative instead.
+        const holder = occ.get(ti);
+        if (holder && holder !== r) {
+          r.speed = 0;
+          r.stopTime += dt;
+          if (r.waitSince < 0) r.waitSince = this.t;
+          r.heldReason = `waiting for ${holder.id} to clear the cell`;
+          heldThisTick.push(r.id);
+          continue;
+        }
+        r.next = target;
+        occ.set(ti, r);
+        r.waitSince = -1;
+        r.heading = headingOf(r.cell, target);
+        if (m.chokeName.has(ti)) this.chokePasses++;
+      }
+
+      for (const p of out.pushes) pushesThisTick.push(p);
+      this.logPushes(out.pushes, ids);
+    }
+    for (const r of this.robots) {
+      const d = decisions[r.id];
+      if (d && r.heldReason) d.held_reason = r.heldReason;
+    }
+    this.lastPushes = pushesThisTick;
+    this.lastGroups = groupsThisTick;
+    this.lastHeld = heldThisTick;
+    this.lastDecisions = decisions;
+
+    // ── layer 3: ORCA-limited advance ──
+    for (const r of movable) {
+      if (!r.next) continue;
+      const desired = this.currentSpeed(r);
+      const v = this.orcaSpeed(r, desired, dt);
+      r.desiredSpeed = desired;
+      r.orcaCap = v;
+      r.speed = v;
+      if (v < 0.05) r.stopTime += dt;
+      r.progress += v * dt;
+      if (r.progress >= 1) {
+        occ.delete(cellIdx(m, r.cell[0], r.cell[1]));
+        r.history.push(r.cell);
+        if (r.history.length > 48) r.history.shift();
+        r.cell = r.next;
+        r.next = null;
+        r.progress = 0;
+        r.distTravelled += 1;
+      }
+    }
+
+    // PIBT's liveness rule: fall behind and you gain priority until you are pushed through
+    for (const r of movable) {
+      const atGoal = !r.goal || cellEq(r.cell, r.goal);
+      r.pibtPriority = bumpPriority(r.pibtPriority, atGoal, r.pibtBase);
+    }
+  }
+
+  /** Surface priority inheritance in the decision log, rate-limited so it stays readable. */
+  private logPushes(pushes: [string, string][], ids: Set<string>) {
+    for (const [pusherId, pushedId] of pushes) {
+      if (!ids.has(pusherId) || !ids.has(pushedId)) continue;
+      const key = `pibt|${pusherId}|${pushedId}`;
+      if (this.t - (this.conflictCooldown.get(key) ?? -100) < 8) continue;
+      this.conflictCooldown.set(key, this.t);
+      const pushed = this.robotById.get(pushedId);
+      const pusher = this.robotById.get(pusherId);
+      if (!pushed || !pusher) continue;
+      pushed.yieldCount++;
+      this.deadlocks++;
+      this.resolutionTimes.push(Math.max(0, this.t - (pushed.waitSince < 0 ? this.t : pushed.waitSince)));
+      this.event(
+        "info",
+        "conflict",
+        pushed.id,
+        `${pushed.id} yielded to ${pusher.id} at ${shortLabel(this.map, pushed.cell[0], pushed.cell[1])} — PIBT priority inheritance (${pusher.id} is further from its goal)`,
+        pushed.cell,
+      );
+    }
+  }
+
+  /** Unchanged stop-and-wait / zone-lock comparison engine. */
+  private moveRobotsBaseline(dt: number) {
     const m = this.map;
     const occ = new Map<number, Robot>();
     for (const r of this.robots) {
       occ.set(cellIdx(m, r.cell[0], r.cell[1]), r);
       if (r.next) occ.set(cellIdx(m, r.next[0], r.next[1]), r);
     }
+    this.stepPedestrians(dt, occ);
+    const workerCells = this.pedCells();
+    for (const r of this.robots) r.commsGroup = -1;
     const order = this.robots
       .filter((r) => r.mode !== "offline")
       .sort((a, b) => this.prio(a) - this.prio(b) || a.index - b.index);
@@ -1405,6 +1972,11 @@ export class FleetEngine {
           r.speed = 0;
           continue;
         }
+        if (workerCells.has(ci)) {
+          r.speed = 0;
+          r.stopTime += dt;
+          continue;
+        }
         const other = occ.get(ci);
         if (other && other !== r) {
           this.handleConflict(r, other, occ);
@@ -1412,49 +1984,7 @@ export class FleetEngine {
           r.stopTime += dt;
           continue;
         }
-        if (this.mode === "ours" && r.linkOk && r.mode !== "retreat") {
-          // intent-aware aisle negotiation: a peer's broadcast intent says it is coming through this
-          // one-lane aisle towards us → take another aisle if cheap, else wait at the entrance.
-          const segNext = this.segmentOf[ci];
-          const segCur = this.segmentOf[cellIdx(m, r.cell[0], r.cell[1])];
-          if (segNext >= 0 && segNext !== segCur) {
-            const oncoming = this.oncomingInSegment(r, segNext);
-            if (oncoming) {
-              if (r.waitSince < 0) r.waitSince = this.t;
-              const key = `avoid|${r.id}|${oncoming.id}`;
-              const fresh = this.t - (this.conflictCooldown.get(key) ?? -100) > 6;
-              if (this.t - r.lastReplan > 2 && r.goal) {
-                const avoid: number[] = [];
-                for (let i = 0; i < this.segmentOf.length; i++) if (this.segmentOf[i] === segNext) avoid.push(i);
-                const p = this.plan(r, r.goal, avoid);
-                r.lastReplan = this.t;
-                if (p && p.length <= r.path.length + 10) {
-                  r.path = p;
-                  r.waitSince = -1;
-                  if (fresh) {
-                    this.conflictCooldown.set(key, this.t);
-                    r.yieldCount++;
-                    this.deadlocks++;
-                    this.resolutionTimes.push(0);
-                    const via = p[Math.min(p.length - 1, 3)];
-                    this.event("info", "conflict", r.id, `${r.id} read ${oncoming.id}'s intent (oncoming in ${cellLabel(m, cand[0], cand[1])}) — took ${shortLabel(m, via[0], via[1])} instead, +${Math.max(0, p.length - (r.path.length))} cells`, r.cell);
-                  }
-                  r.speed = 0;
-                  continue;
-                }
-              }
-              if (this.t - r.waitSince < 5) {
-                if (fresh) {
-                  this.conflictCooldown.set(key, this.t);
-                  this.event("info", "conflict", r.id, `${r.id} read ${oncoming.id}'s intent (oncoming in ${cellLabel(m, cand[0], cand[1])}) — waiting at ${shortLabel(m, r.cell[0], r.cell[1])} for it to clear`, r.cell);
-                }
-                r.speed = 0;
-                r.stopTime += dt;
-                continue;
-              }
-            }
-          }
-        }
+        // (the old intent-based aisle negotiation lived here; PIBT in moveRobotsPibt replaced it)
         if (this.mode === "baseline" && this.zoneLock) {
           // zone lock: one robot per one-lane segment; wait at the entrance until it is free
           const segNext = this.segmentOf[ci];
@@ -1511,44 +2041,16 @@ export class FleetEngine {
     }
   }
 
-  /** A peer (within comms range) that is inside `seg` and moving towards this robot's entrance. */
-  private oncomingInSegment(r: Robot, seg: number): Robot | null {
-    const m = this.map;
-    const dist = (a: Cell, b: Cell) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-    for (const id of r.neighbours) {
-      const o = this.robotById.get(id);
-      if (!o || o.mode === "offline" || o.mode === "charging") continue;
-      const inSeg = this.segmentOf[cellIdx(m, o.cell[0], o.cell[1])] === seg || (o.next && this.segmentOf[cellIdx(m, o.next[0], o.next[1])] === seg);
-      if (!inSeg) continue;
-      const ahead = o.next ?? o.path[0];
-      if (!ahead) continue; // stationary peer: handled by the normal re-plan-around logic
-      if (dist(o.cell, r.cell) <= 1) continue; // right next to us = same entrance, not oncoming
-      if (dist(ahead, r.cell) < dist(o.cell, r.cell)) return o;
-    }
-    return null;
-  }
-
+  /**
+   * Desired speed, before ORCA sees it. Only coordination-level caps belong here; physical
+   * separation is ORCA's job in `orcaSpeed`, and stacking a second proximity brake on top of it
+   * measurably slowed the fleet without preventing anything.
+   */
   private currentSpeed(r: Robot): number {
     let v = r.info.max_speed;
     if (this.mode === "ours") {
-      if (!r.linkOk) v *= 0.6;
+      if (!r.linkOk) v *= 0.6; // running blind on cached intent, so go carefully
       if (r.mode === "retreat") v *= 0.8;
-      // intent-aware slow-down only for an imminent head-on / crossing: a peer's next cells include
-      // our cell or the cell we are entering. Following a peer in the same direction does not slow us.
-      const mine: Cell[] = [];
-      if (r.next) mine.push(r.next);
-      if (r.path[0]) mine.push(r.path[0]);
-      mine.push(r.cell);
-      for (const id of r.neighbours) {
-        const o = this.robotById.get(id);
-        if (!o || o.mode === "charging" || o.dwelling) continue;
-        const theirs = o.path.slice(0, 2);
-        if (o.next) theirs.unshift(o.next);
-        if (theirs.some((c) => mine.some((mc) => cellEq(mc, c)))) {
-          v = Math.min(v, 0.6);
-          break;
-        }
-      }
     }
     return v;
   }
@@ -1810,6 +2312,18 @@ export class FleetEngine {
   }
 
   private checkCollisions() {
+    if (this.pedestrians.length) {
+      const workerAt = new Map<number, Ped>();
+      for (const p of this.pedestrians) workerAt.set(cellIdx(this.map, p.col, Math.floor(p.y)), p);
+      for (const r of this.robots) {
+        if (r.mode === "offline") continue;
+        const w = workerAt.get(cellIdx(this.map, r.cell[0], r.cell[1]));
+        if (w) {
+          this.pedestrianContacts++;
+          this.event("error", "conflict", r.id, `CONTACT: ${r.id} shares a cell with ${w.label} (${w.id}) at ${shortLabel(this.map, r.cell[0], r.cell[1])}`, r.cell);
+        }
+      }
+    }
     const seen = new Map<number, Robot>();
     for (const r of this.robots) {
       const i = cellIdx(this.map, r.cell[0], r.cell[1]);
@@ -2014,6 +2528,9 @@ export class FleetEngine {
       tasks_done: r.tasksDone,
       destination: r.goalLabel ?? (r.mode === "charging" ? r.charger?.id ?? null : stationHere?.id ?? null),
       health: { overall: r.healthOverall, failed: r.healthFailed },
+      desired_speed: Math.round(r.desiredSpeed * 100) / 100,
+      orca_cap: Math.round(r.orcaCap * 100) / 100,
+      comms_group: r.commsGroup,
     };
   }
 
@@ -2066,6 +2583,7 @@ export class FleetEngine {
       yields_total: this.robots.reduce((s, r) => s + r.yieldCount, 0),
       msgs_per_sec_total: Math.round(this.robots.reduce((s, r) => s + r.msgsPerSec, 0) * 10) / 10,
       throughput_per_min: recent,
+      pedestrian_contacts: this.pedestrianContacts,
     };
   }
   private prunedDone = 0;

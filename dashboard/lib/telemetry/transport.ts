@@ -103,6 +103,11 @@ export class MockTransport implements Transport {
         this.boot();
         return;
       case "time_scale":
+        // 0 = pause (the replay scrubber); the previous scale is kept for the resume
+        if (msg.value <= 0) {
+          this.clearTimer();
+          return;
+        }
         this.timeScale = Math.max(0.25, Math.min(4, msg.value));
         this.schedule();
         return;

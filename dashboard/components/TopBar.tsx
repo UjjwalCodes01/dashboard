@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Clock3, Download, Radio, ShieldCheck, SlidersHorizontal, WifiOff, X } from "lucide-react";
+import { CalendarDays, Clock3, Command, Download, Radio, ShieldCheck, SlidersHorizontal, WifiOff, X } from "lucide-react";
 import { useFleetStore } from "@/lib/store";
 import { SCENARIO_LIST, type ScenarioName } from "@/lib/sim/scenarios";
 import { fmtDate, fmtSimTime, fmtWall } from "@/lib/format";
@@ -112,7 +112,17 @@ export function TopBar() {
           <SimControls />
         </div>
 
-        <InstallButton className="hidden lg:inline-flex" />
+        {/* wrappers carry the responsive hide: .dark-btn sets display itself and would beat `hidden` */}
+        <div className="hidden md:block">
+          <button className="dark-btn !px-2 gap-1.5" onClick={() => useFleetStore.getState().setPalette(true)} title="Command palette (⌘K / Ctrl+K)">
+            <Command className="h-3.5 w-3.5" />
+            <kbd className="mono text-[10px] text-text-3">⌘K</kbd>
+          </button>
+        </div>
+
+        <div className="hidden lg:block">
+          <InstallButton />
+        </div>
 
         <div className="flex items-center gap-2 lg:pl-2 lg:border-l border-panel-border">
           <div className="flex items-center gap-1.5 text-[12px]">

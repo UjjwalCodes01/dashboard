@@ -50,10 +50,10 @@ for (const sc of SCENARIO_LIST) {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fleet = (eng as any).fleetStats();
-  const ok = fleet.collisions === 0 && errors.filter((e) => e.startsWith("COLLISION")).length === 0;
+  const ok = fleet.collisions === 0 && (fleet.pedestrian_contacts ?? 0) === 0 && errors.filter((e) => e.startsWith("COLLISION") || e.startsWith("CONTACT")).length === 0;
   if (!ok) failures++;
   console.log(
-    `${ok ? "OK " : "BAD"} ${sc.name.padEnd(14)} done=${String(fleet.tasks_done).padStart(3)} rebid=${fleet.tasks_rebid} coll=${fleet.collisions} deadlocks=${fleet.deadlocks_resolved} yields=${fleet.yields_total} blocked=${fleet.blocked} idle=${fleet.idle} charging=${fleet.charging} offline=${fleet.offline} stuckChecks=${stuck} events=${counts.event ?? 0} tasks=${counts.task ?? 0} ${Date.now() - t0}ms`,
+    `${ok ? "OK " : "BAD"} ${sc.name.padEnd(14)} done=${String(fleet.tasks_done).padStart(3)} rebid=${fleet.tasks_rebid} coll=${fleet.collisions} contacts=${fleet.pedestrian_contacts ?? 0} deadlocks=${fleet.deadlocks_resolved} yields=${fleet.yields_total} blocked=${fleet.blocked} idle=${fleet.idle} charging=${fleet.charging} offline=${fleet.offline} stuckChecks=${stuck} events=${counts.event ?? 0} tasks=${counts.task ?? 0} ${Date.now() - t0}ms`,
   );
   for (const c of conflicts) console.log(`      · ${c}`);
   for (const e of errors.slice(0, 3)) console.log(`      ! ${e}`);

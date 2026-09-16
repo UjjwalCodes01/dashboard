@@ -10,6 +10,7 @@ import { SafetyTiles } from "@/components/overview/SafetyTiles";
 import { ChargingStrip } from "@/components/overview/ChargingStrip";
 import { LegendInline } from "@/components/Legend";
 import { EventLog } from "@/components/EventLog";
+import { ExportRunButton } from "@/components/overview/ExportRunButton";
 import { useFleetStore } from "@/lib/store";
 
 export default function OverviewPage() {
@@ -24,6 +25,9 @@ export default function OverviewPage() {
         <h1 className="relative px-4 sm:px-6 text-[15px] sm:text-[20px] font-semibold tracking-wide text-[#bfefff] bg-[#0b1220] drop-shadow-[0_0_12px_rgba(34,211,238,0.55)] text-center">
           AMR Fleet Coordination Monitor
         </h1>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:block">
+          <ExportRunButton />
+        </div>
       </div>
 
       <div className="flex-1 lg:min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px] gap-3 px-3 pb-3">

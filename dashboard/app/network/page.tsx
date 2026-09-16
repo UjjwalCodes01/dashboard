@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Ban, Eraser, GitFork, Power, ShieldAlert, Unplug } from "lucide-react";
+import { Ban, BatteryLow, Eraser, Footprints, GitFork, Power, RadioTower, ShieldAlert, TrendingUp, Unplug } from "lucide-react";
 import { MapCanvas } from "@/components/map/MapCanvas";
 import { EventLog } from "@/components/EventLog";
+import { FaultTimeline } from "@/components/network/FaultTimeline";
 import { LegendInline } from "@/components/Legend";
 import { Panel, StateChip, Toggle } from "@/components/ui";
 import { useThrottled } from "@/lib/hooks";
@@ -146,12 +147,28 @@ export default function NetworkPage() {
                 <button className="dark-btn w-full justify-start" data-active={partitioned} onClick={() => send({ type: "fault", action: "partition", value: partitioned ? false : true })}>
                   <GitFork className="h-3.5 w-3.5" /> {partitioned ? "Heal partition" : "Partition fleet (two groups)"}
                 </button>
+                <button className="dark-btn w-full justify-start" onClick={() => send({ type: "fault", action: "blackout", seconds: 30 })} title="Every link down for 30 s, then restored. Robots fall back to cached intent, the sensor veto and ORCA.">
+                  <RadioTower className="h-3.5 w-3.5" /> Comms blackout · 30 s
+                </button>
+                <button className="dark-btn w-full justify-start" onClick={() => send({ type: "fault", action: "pedestrian" })} title="A person starts walking an aisle. Nobody negotiates with a person: PIBT routes around, ORCA keeps clearance.">
+                  <Footprints className="h-3.5 w-3.5" /> Send a worker into an aisle
+                </button>
+                <button className="dark-btn w-full justify-start" onClick={() => send({ type: "fault", action: "task_surge", value: 4, seconds: 60 })} title="Task arrivals ×4 for 60 s — the on-board auction under load">
+                  <TrendingUp className="h-3.5 w-3.5" /> Order surge ×4 · 60 s
+                </button>
+                <button className="dark-btn w-full justify-start" onClick={() => robots.slice(0, 6).forEach((r) => send({ type: "fault", action: "set_battery", target: r.robot_id, value: 22 }))} title="Six robots dropped to 22 % at once — charger contention with six bays">
+                  <BatteryLow className="h-3.5 w-3.5" /> Drain six batteries to 22 %
+                </button>
                 <div className="flex items-center gap-2 text-[10px] text-text-3 pt-1">
                   <Unplug className="h-3 w-3" /> Each control is a fault, not a command. Robots respond on their own.
                 </div>
               </div>
             </Panel>
           </div>
+
+          <Panel className="h-[220px] xl:h-auto xl:flex-1 xl:min-h-[180px]" title="Fault timeline" right={<span className="text-[10px] text-text-3">⚡ injected · cyan tasks/min · red collisions · orange worker contacts</span>}>
+            <FaultTimeline />
+          </Panel>
 
           <Panel className="h-[220px] xl:h-auto xl:flex-1 xl:min-h-[180px]" title="Messages per second" right={<span className="text-[10px] text-text-3">intent broadcast per robot · last 60 s</span>}>
             <div className="h-full w-full p-2">

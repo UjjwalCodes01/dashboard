@@ -10,6 +10,9 @@ const ITEMS: { key: keyof VT; label: string; title: string }[] = [
   { key: "chokes", label: "choke points", title: "One-lane crossings where conflicts are resolved" },
   { key: "grid", label: "grid", title: "1 m grid" },
   { key: "labels", label: "labels", title: "Shelf and aisle labels" },
+  { key: "heat", label: "heatmap", title: "Congestion: cyan where robots flow, amber to red where they stood still (decays over ~30 s)" },
+  { key: "pushes", label: "PIBT pushes", title: "Priority inheritance as it fires: an arrow from the robot that pushed to the one that gave way" },
+  { key: "packets", label: "packets", title: "Intent messages animating along every peer link" },
 ];
 
 export function ViewToggles({ className = "" }: { className?: string }) {
