@@ -74,7 +74,9 @@ export function CameraView({
   return (
     <div
       ref={wrapRef}
-      className={`relative overflow-hidden rounded-md border border-panel-border bg-black ${main ? "" : "cursor-pointer hover:border-accent/50"}`}
+      // h-full/w-full matter: every child is absolutely positioned, so without them this box has no
+      // height of its own, the draw loop measures 0×0 and bails, and the feed stays black
+      className={`relative h-full w-full min-h-0 overflow-hidden rounded-md border border-panel-border bg-black ${main ? "" : "cursor-pointer hover:border-accent/50"}`}
       onClick={onSelect}
     >
       <canvas ref={ref} className="absolute inset-0" />
